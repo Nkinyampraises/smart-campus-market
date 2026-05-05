@@ -1,0 +1,72 @@
+pipeline {
+    agent any
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/your-repo/campus-trade.git'
+            }
+        }
+        stage('Install') {
+            steps {
+                sh 'cd frontend && npm ci'
+                sh 'for service in auth-service user-service listing-service chat-service admin-service ai-service search-service notification-service; do cd services/$service && npm ci && cd ../..; done'
+            }
+        }
+        stage('Lint') {
+            steps {
+                sh 'cd frontend && npm run lint'
+                sh 'for service in auth-service user-service listing-service chat-service admin-service ai-service search-service notification-service; do cd services/$service && npm run lint && cd ../..; done'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'cd frontend && npm test -- --coverage --watchAll=false'
+                sh 'for service in auth-service user-service listing-service chat-service admin-service ai-service search-service notification-service; do cd services/$service && npm test -- --coverage --watchAll=false && cd ../..; done'
+            }
+        }
+        stage('Build') {
+            steps {
+                sh 'docker build -t campus/auth-service:${GIT_COMMIT} services/auth-service'
+                sh 'docker build -t campus/user-service:${GIT_COMMIT} services/user-service'
+                sh 'docker build -t campus/listing-service:${GIT_COMMIT} services/listing-service'
+                sh 'docker build -t campus/chat-service:${GIT_COMMIT} services/chat-service'
+                sh 'docker build -t campus/admin-service:${GIT_COMMIT} services/admin-service'
+                sh 'docker build -t campus/ai-service:${GIT_COMMIT} services/ai-service'
+                sh 'docker build -t campus/search-service:${GIT_COMMIT} services/search-service'
+                sh 'docker build -t campus/notification-service:${GIT_COMMIT} services/notification-service'
+                sh 'docker build -t campus/frontend:${GIT_COMMIT} frontend'
+            }
+        }
+        stage('Push') {
+            steps {
+                sh 'docker push campus/auth-service:${GIT_COMMIT}'
+                sh 'docker push campus/user-service:${GIT_COMMIT}'
+                sh 'docker push campus/listing-service:${GIT_COMMIT}'
+                sh 'docker push campus/chat-service:${GIT_COMMIT}'
+                sh 'docker push campus/admin-service:${GIT_COMMIT}'
+                sh 'docker push campus/ai-service:${GIT_COMMIT}'
+                sh 'docker push campus/search-service:${GIT_COMMIT}'
+                sh 'docker push campus/notification-service:${GIT_COMMIT}'
+                sh 'docker push campus/frontend:${GIT_COMMIT}'
+            }
+        }
+        stage('Deploy') {
+            steps {
+                sh 'kubectl set image deployment/auth-service auth-service=campus/auth-service:${GIT_COMMIT}'
+                sh 'kubectl set image deployment/user-service user-service=campus/user-service:${GIT_COMMIT}'
+                sh 'kubectl set image deployment/listing-service listing-service=campus/listing-service:${GIT_COMMIT}'
+                sh 'kubectl set image deployment/chat-service chat-service=campus/chat-service:${GIT_COMMIT}'
+                sh 'kubectl set image deployment/admin-service admin-service=campus/admin-service:${GIT_COMMIT}'
+                sh 'kubectl set image deployment/ai-service ai-service=campus/ai-service:${GIT_COMMIT}'
+                sh 'kubectl set image deployment/search-service search-service=campus/search-service:${GIT_COMMIT}'
+                sh 'kubectl set image deployment/notification-service notification-service=campus/notification-service:${GIT_COMMIT}'
+                sh 'kubectl set image deployment/frontend frontend=campus/frontend:${GIT_COMMIT}'
+            }
+        }
+        stage('Notify') {
+            steps {
+                sh 'curl -X POST -H "Content-Type: application/json" -d "{\"text\":\"Build ${BUILD_NUMBER} completed successfully\"}" https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+            }
+        }
+    }
+}

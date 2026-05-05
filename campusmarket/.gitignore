@@ -1,0 +1,5 @@
+# CampusTrade
+node_modules/
+.env
+dist/
+*.log

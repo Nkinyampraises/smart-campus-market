@@ -1,0 +1,9 @@
+{
+  "name": "@campus-trade/shared",
+  "version": "1.0.0",
+  "description": "Shared utilities for CampusTrade microservices",
+  "main": "events.js",
+  "dependencies": {
+    "redis": "^4.6.8"
+  }
+}

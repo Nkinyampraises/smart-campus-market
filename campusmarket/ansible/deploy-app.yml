@@ -1,0 +1,25 @@
+---
+- name: Deploy Application
+  hosts: all
+  become: yes
+  tasks:
+    - name: Pull latest Docker images
+      docker_image:
+        name: "{{ item }}"
+        source: pull
+      loop:
+        - campus/auth-service:latest
+        - campus/user-service:latest
+        - campus/listing-service:latest
+        - campus/chat-service:latest
+        - campus/admin-service:latest
+        - campus/ai-service:latest
+        - campus/search-service:latest
+        - campus/notification-service:latest
+        - campus/frontend:latest
+
+    - name: Apply Kubernetes manifests
+      command: kubectl apply -f ../k8s/
+
+    - name: Restart failed pods
+      command: kubectl delete pods --field-selector=status.phase=Failed

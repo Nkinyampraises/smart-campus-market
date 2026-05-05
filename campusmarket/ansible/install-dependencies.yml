@@ -1,0 +1,33 @@
+---
+- name: Install Dependencies
+  hosts: all
+  become: yes
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Install Docker Compose
+      apt:
+        name: docker-compose
+        state: present
+
+    - name: Install kubectl
+      apt:
+        name: kubectl
+        state: present
+
+    - name: Install Node.js 20 LTS
+      apt:
+        name: nodejs
+        state: present
+
+    - name: Install PostgreSQL client
+      apt:
+        name: postgresql-client
+        state: present
