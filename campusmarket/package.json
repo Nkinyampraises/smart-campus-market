@@ -14,5 +14,16 @@
     "test:all": "npm run test:frontend && npm run test:backend",
     "start:dev": "docker-compose -f docker/docker-compose.yml up -d",
     "stop:dev": "docker-compose -f docker/docker-compose.yml down"
+  },
+  "dependencies": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.15.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.11",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.14",
+    "tailwindcss": "^4.2.4"
   }
 }
