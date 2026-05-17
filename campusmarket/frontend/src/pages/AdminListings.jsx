@@ -1,126 +1,60 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Topbar from '../components/Topbar';
 import AdminSidebar from '../components/AdminSidebar';
-import { adminAllListings } from '../data/mockData';
-import { formatFCFA } from '../data/listings';
-import { useToast } from '../context/ToastContext';
-
-const FILTERS = ['All', 'Active', 'Hidden', 'Flagged', 'Expired'];
-
-const statusConfig = {
-  Active: 'bg-emerald-100 text-emerald-700',
-  Hidden: 'bg-gray-100 text-gray-600',
-  Flagged: 'bg-red-100 text-red-600',
-  Expired: 'bg-yellow-100 text-yellow-700',
-};
+import { api } from '../services/api';
+import { formatFCFA } from '../utils/format';
 
 const AdminListings = () => {
-  const navigate = useNavigate();
-  const { showToast } = useToast();
-  const [listings, setListings] = useState(adminAllListings);
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [listings, setListings] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [search, setSearch]     = useState('');
 
-  const filtered = listings.filter((l) => activeFilter === 'All' || l.status === activeFilter);
+  useEffect(() => {
+    api.adminListings().then(setListings).catch(console.error).finally(() => setLoading(false));
+  }, []);
 
-  const removeListing = (id) => {
-    setListings((prev) => prev.filter((l) => l.id !== id));
-    showToast('Listing removed.', 'success');
-  };
+  const filtered = listings.filter((l) => l.title?.toLowerCase().includes(search.toLowerCase()));
+  const statusColor = (s) =>
+    s === 'active' ? 'bg-emerald-100 text-emerald-700' : s === 'reserved' ? 'bg-blue-100 text-blue-700' :
+    s === 'sold' ? 'bg-gray-100 text-gray-500' : 'bg-red-100 text-red-600';
 
   return (
-    <div className="min-h-screen bg-[#fcf9f8]">
-      <Topbar />
-      <div className="max-w-7xl mx-auto flex">
-        <AdminSidebar />
-        <main className="flex-1 p-8">
-          <div className="mb-8">
-            <h1 className="text-[32px] font-black text-[#1b1c1c]">Marketplace Listings</h1>
-            <p className="text-[14px] text-gray-400 mt-1">{listings.length} total listings</p>
+    <div className="min-h-screen bg-[#fcf9f8] flex">
+      <AdminSidebar activePage="listings" />
+      <main className="flex-1 p-8">
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-[28px] font-black text-[#1b1c1c]">Listings</h1>
+          <input type="text" placeholder="Search listings…" value={search} onChange={(e) => setSearch(e.target.value)}
+            className="px-4 py-2 border border-gray-200 rounded-xl text-[14px] focus:outline-none focus:border-[#ff6b1a] w-64" />
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-[#ff6b1a] border-t-transparent rounded-full animate-spin" /></div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <table className="w-full text-[14px]">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>{['Title','Category','Price','Zone','Status'].map((h) => (
+                  <th key={h} className="px-5 py-3 text-left font-black text-[11px] text-gray-400 uppercase tracking-wider">{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map((l) => (
+                  <tr key={l.id} className="hover:bg-gray-50">
+                    <td className="px-5 py-3 font-semibold text-[#1b1c1c] max-w-[200px] truncate">{l.title}</td>
+                    <td className="px-5 py-3 text-gray-500">{l.category}</td>
+                    <td className="px-5 py-3 font-bold text-[#ff6b1a]">{formatFCFA(l.price_fcfa)}</td>
+                    <td className="px-5 py-3 text-gray-500">{l.campus_zone || '—'}</td>
+                    <td className="px-5 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${statusColor(l.status)}`}>{l.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filtered.length === 0 && <p className="text-center text-gray-400 py-10">No listings found</p>}
           </div>
-
-          {/* Filter chips */}
-          <div className="flex gap-2 mb-6">
-            {FILTERS.map((f) => (
-              <button
-                key={f}
-                onClick={() => setActiveFilter(f)}
-                className={`px-4 py-2 rounded-full font-bold text-[12px] transition-all ${
-                  activeFilter === f
-                    ? 'bg-[#ff6b1a] text-white shadow-md'
-                    : 'bg-white border border-gray-200 text-gray-600 hover:border-[#ff6b1a]'
-                }`}
-              >
-                {f}
-                <span className="ml-1 opacity-70">
-                  ({f === 'All' ? listings.length : listings.filter((l) => l.status === f).length})
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_auto] gap-4 px-6 py-4 border-b border-gray-100 bg-gray-50">
-              {['Item', 'Seller', 'Price', 'Category', 'Status', 'Reports', 'Actions'].map((h) => (
-                <span key={h} className="text-[10px] font-black tracking-widest text-gray-400 uppercase">{h}</span>
-              ))}
-            </div>
-
-            {filtered.map((listing) => (
-              <div
-                key={listing.id}
-                className={`grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_auto] gap-4 px-6 py-4 border-b border-gray-50 items-center ${
-                  listing.status === 'Flagged' ? 'bg-red-50/30' : 'hover:bg-gray-50/40'
-                } transition-colors`}
-              >
-                {/* Item */}
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-10 rounded-lg overflow-hidden flex-shrink-0">
-                    <img src={listing.image} alt="" className="w-full h-full object-cover" />
-                  </div>
-                  <p className="font-bold text-[13px] text-[#1b1c1c] line-clamp-2">{listing.title}</p>
-                </div>
-
-                <p className="text-[12px] text-gray-600">{listing.seller}</p>
-
-                <p className="font-bold text-[13px] text-[#ff6b1a]">{formatFCFA(listing.priceFCFA)}</p>
-
-                <p className="text-[12px] text-gray-600">{listing.category}</p>
-
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest w-fit ${statusConfig[listing.status] || 'bg-gray-100 text-gray-600'}`}>
-                  {listing.status}
-                </span>
-
-                <span className={`font-bold text-[13px] ${listing.reports > 0 ? 'text-red-600' : 'text-gray-400'}`}>
-                  {listing.reports}
-                </span>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => navigate(`/listing/${listing.id}`)}
-                    className="px-3 py-1.5 border border-gray-200 rounded-lg text-[11px] font-bold text-gray-600 hover:bg-gray-50 transition-all"
-                  >
-                    View
-                  </button>
-                  <button
-                    onClick={() => removeListing(listing.id)}
-                    className="px-3 py-1.5 border border-red-300 rounded-lg text-[11px] font-bold text-red-600 hover:bg-red-50 transition-all"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {filtered.length === 0 && (
-              <div className="text-center py-16 text-gray-400">
-                <span className="material-symbols-outlined text-[48px] mb-3 block">store</span>
-                <p className="font-semibold">No listings found</p>
-              </div>
-            )}
-          </div>
-        </main>
-      </div>
+        )}
+      </main>
     </div>
   );
 };

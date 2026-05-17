@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Topbar from '../components/Topbar';
-import { formatFCFA } from '../data/listings';
+import { formatFCFA } from '../utils/format';
+import { api } from '../services/api';
 
 const hardcodedListings = [
   {
@@ -118,7 +119,7 @@ const hardcodedListings = [
   },
 ];
 
-const TAB_FILTERS = ['Active', 'Reserved', 'Sold', 'Expired', 'Drafts'];
+const TAB_FILTERS = ['active', 'reserved', 'sold', 'expired'];
 
 const getStatusColor = (status) => {
   switch (status) {
@@ -132,30 +133,24 @@ const getStatusColor = (status) => {
 
 const MyListings = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('Active');
-  const [listings, setListings] = useState(() => {
-    const stored = JSON.parse(localStorage.getItem('campustrade_listings') || '[]');
-    const storedIds = new Set(stored.map((l) => String(l.id)));
-    const base = hardcodedListings.filter((l) => !storedIds.has(String(l.id)));
-    return [...stored, ...base];
-  });
+  const [activeTab, setActiveTab] = useState('active');
+  const [listings, setListings]   = useState([]);
+  const [loading, setLoading]     = useState(true);
 
-  const filtered = listings.filter((l) => {
-    const s = l.status || 'Active';
-    if (activeTab === 'Active') return s === 'Active';
-    if (activeTab === 'Reserved') return s === 'Reserved';
-    if (activeTab === 'Sold') return s === 'Sold';
-    if (activeTab === 'Expired') return s === 'Expired';
-    if (activeTab === 'Drafts') return s === 'Draft';
-    return true;
-  });
+  useEffect(() => {
+    api.getMyListings()
+      .then((data) => setListings(data.map((l) => ({ ...l, priceFCFA: l.price_fcfa, location: l.campus_zone, image: l.images?.[0] }))))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = listings.filter((l) => (l.status || 'active') === activeTab);
 
   const counts = {
-    Active: listings.filter((l) => (l.status || 'Active') === 'Active').length,
-    Reserved: listings.filter((l) => l.status === 'Reserved').length,
-    Sold: listings.filter((l) => l.status === 'Sold').length,
-    Expired: listings.filter((l) => l.status === 'Expired').length,
-    Drafts: listings.filter((l) => l.status === 'Draft').length,
+    active:   listings.filter((l) => (l.status || 'active') === 'active').length,
+    reserved: listings.filter((l) => l.status === 'reserved').length,
+    sold:     listings.filter((l) => l.status === 'sold').length,
+    expired:  listings.filter((l) => l.status === 'expired').length,
   };
 
   return (
@@ -206,7 +201,11 @@ const MyListings = () => {
         </div>
 
         {/* Listings */}
-        {filtered.length > 0 ? (
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="w-8 h-8 border-4 border-[#ff6b1a] border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : filtered.length > 0 ? (
           <div className="grid grid-cols-1 gap-5">
             {filtered.map((listing) => (
               <div
@@ -290,11 +289,11 @@ const MyListings = () => {
         ) : (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <span className="material-symbols-outlined text-[60px] text-gray-200 mb-4">inventory_2</span>
-            <h3 className="text-[20px] font-bold text-[#1b1c1c] mb-2">No {activeTab.toLowerCase()} listings</h3>
+            <h3 className="text-[20px] font-bold text-[#1b1c1c] mb-2">No {activeTab} listings</h3>
             <p className="text-[14px] text-gray-400 mb-6">
-              {activeTab === 'Active' ? 'Post your first listing and start selling!' : `You have no ${activeTab.toLowerCase()} listings.`}
+              {activeTab === 'active' ? 'Post your first listing and start selling!' : `You have no ${activeTab} listings.`}
             </p>
-            {activeTab === 'Active' && (
+            {activeTab === 'active' && (
               <button
                 onClick={() => navigate('/create-listing')}
                 className="bg-[#ff6b1a] text-white px-8 py-3 rounded-full font-bold text-[14px] hover:shadow-lg transition-all"

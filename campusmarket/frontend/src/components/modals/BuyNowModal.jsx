@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
-import { formatFCFA } from '../../data/listings';
-import { mockNotifications } from '../../data/mockData';
+import { formatFCFA } from '../../utils/format';
+import { api } from '../../services/api';
 
 const campusZones = [
   'Engineering Block',
@@ -35,25 +35,12 @@ const BuyNowModal = ({ listing, onClose }) => {
     }
     setLoading(true);
 
-    setTimeout(() => {
-      // Push a seller notification into the mock notifications array
-      const newNotif = {
-        id: `buy_${Date.now()}`,
-        type: 'buy_request',
-        icon: 'shopping_bag',
-        iconBg: 'bg-emerald-100',
-        iconColor: 'text-emerald-600',
-        title: 'New buy request!',
-        description: `${user?.name || 'A student'} wants to buy "${listing.title}" — delivering to ${zone}${landmark ? `, ${landmark}` : ''}.`,
-        time: 'Just now',
-        read: false,
-        link: '/inbox',
-      };
-      mockNotifications.unshift(newNotif);
-
-      setLoading(false);
-      setSubmitted(true);
-    }, 900);
+    api.buyNow(listing.id, { campus_zone: zone, landmark, note })
+      .catch(console.error)
+      .finally(() => {
+        setLoading(false);
+        setSubmitted(true);
+      });
   };
 
   if (submitted) {

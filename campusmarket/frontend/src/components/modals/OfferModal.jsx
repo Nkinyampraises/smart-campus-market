@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useToast } from '../../context/ToastContext';
-import { formatFCFA } from '../../data/listings';
+import { formatFCFA } from '../../utils/format';
+import { api } from '../../services/api';
 
 const OfferModal = ({ listing, onClose, mode = 'offer' }) => {
   const { showToast } = useToast();
@@ -14,11 +15,10 @@ const OfferModal = ({ listing, onClose, mode = 'offer' }) => {
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      showToast(mode === 'counter' ? 'Counter offer sent!' : 'Offer sent!', 'success');
-      onClose();
-    }, 800);
+    api.makeOffer(listing.id, { amount: Number(amount), note })
+      .then(() => { showToast(mode === 'counter' ? 'Counter offer sent!' : 'Offer sent!', 'success'); onClose(); })
+      .catch(() => showToast('Failed to send offer', 'error'))
+      .finally(() => setLoading(false));
   };
 
   return (

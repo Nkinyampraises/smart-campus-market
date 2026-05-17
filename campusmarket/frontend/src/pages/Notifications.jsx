@@ -1,27 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Topbar from '../components/Topbar';
-import { mockNotifications } from '../data/mockData';
+import { api } from '../services/api';
+
+const iconMap = {
+  offer:         { icon: 'local_offer',  bg: 'bg-orange-100',  color: 'text-[#ff6b1a]' },
+  buy_request:   { icon: 'shopping_bag', bg: 'bg-emerald-100', color: 'text-emerald-600' },
+  message:       { icon: 'chat',         bg: 'bg-blue-100',    color: 'text-blue-600' },
+  offer_accepted:{ icon: 'check_circle', bg: 'bg-emerald-100', color: 'text-emerald-600' },
+  expire:        { icon: 'timer',        bg: 'bg-red-100',     color: 'text-red-600' },
+  suspended:     { icon: 'block',        bg: 'bg-red-100',     color: 'text-red-600' },
+  sale:          { icon: 'sell',         bg: 'bg-green-100',   color: 'text-green-700' },
+  review:        { icon: 'star',         bg: 'bg-yellow-100',  color: 'text-yellow-600' },
+};
 
 const Notifications = () => {
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  useEffect(() => {
+    api.getNotifications().then(setNotifications).catch(console.error).finally(() => setLoading(false));
+  }, []);
+
+  const markAllRead = async () => {
+    await api.markAllRead().catch(console.error);
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
   };
 
-  const markRead = (id, link) => {
-    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
-    if (link) navigate(link);
+  const handleClick = (n) => {
+    setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, is_read: true } : x));
+    if (n.link) navigate(n.link);
   };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   return (
     <div className="min-h-screen bg-[#fcf9f8]">
       <Topbar activePage="notifications" />
-
       <div className="max-w-3xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -29,59 +45,38 @@ const Notifications = () => {
               <span className="material-symbols-outlined text-[#ff6b1a] text-[32px]">notifications</span>
               Notifications
             </h1>
-            {unreadCount > 0 && (
-              <p className="text-[14px] text-gray-400 mt-1">{unreadCount} unread</p>
-            )}
+            {unreadCount > 0 && <p className="text-[14px] text-gray-400 mt-1">{unreadCount} unread</p>}
           </div>
           {unreadCount > 0 && (
-            <button
-              onClick={markAllRead}
-              className="text-[#ff6b1a] font-bold text-[13px] hover:underline"
-            >
-              Mark all read
-            </button>
+            <button onClick={markAllRead} className="text-[#ff6b1a] font-bold text-[13px] hover:underline">Mark all read</button>
           )}
         </div>
-
-        <div className="flex flex-col gap-2">
-          {notifications.map((notif) => (
-            <button
-              key={notif.id}
-              onClick={() => markRead(notif.id, notif.link)}
-              className={`w-full text-left bg-white rounded-2xl border-2 p-5 flex gap-4 hover:shadow-md transition-all ${
-                !notif.read ? 'border-l-[#ff6b1a] border-l-4 border-y-gray-100 border-r-gray-100' : 'border-gray-100'
-              }`}
-            >
-              {/* Icon */}
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${notif.iconBg}`}>
-                <span className={`material-symbols-outlined text-[22px] ${notif.iconColor}`} style={{ fontVariationSettings: "'FILL' 1" }}>
-                  {notif.icon}
-                </span>
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <p className={`text-[14px] ${!notif.read ? 'font-bold text-[#1b1c1c]' : 'font-semibold text-gray-700'}`}>
-                    {notif.title}
-                  </p>
-                  <span className="text-[11px] text-gray-400 flex-shrink-0">{notif.time}</span>
-                </div>
-                <p className="text-[13px] text-gray-500 mt-0.5 leading-relaxed">{notif.description}</p>
-              </div>
-
-              {/* Unread dot */}
-              {!notif.read && (
-                <div className="w-2.5 h-2.5 bg-[#ff6b1a] rounded-full flex-shrink-0 mt-2" />
-              )}
-            </button>
-          ))}
-        </div>
-
-        {notifications.length === 0 && (
+        {loading ? (
+          <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-[#ff6b1a] border-t-transparent rounded-full animate-spin" /></div>
+        ) : notifications.length === 0 ? (
           <div className="text-center py-20 text-gray-400">
-            <span className="material-symbols-outlined text-[52px] mb-3 block">notifications_off</span>
-            <p className="font-bold text-[16px]">No notifications yet</p>
+            <span className="material-symbols-outlined text-[48px] mb-3 block">notifications_none</span>
+            <p className="font-semibold">No notifications yet</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {notifications.map((n) => {
+              const style = iconMap[n.type] || { icon: 'info', bg: 'bg-gray-100', color: 'text-gray-600' };
+              return (
+                <button key={n.id} onClick={() => handleClick(n)}
+                  className={`w-full flex items-start gap-4 p-4 rounded-2xl border transition-all text-left ${!n.is_read ? 'bg-white border-[#ff6b1a]/20 shadow-sm' : 'bg-white border-gray-100'}`}>
+                  <div className={`${style.bg} p-2.5 rounded-xl flex-shrink-0`}>
+                    <span className={`material-symbols-outlined text-[22px] ${style.color}`} style={{ fontVariationSettings: "'FILL' 1" }}>{style.icon}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-[14px] text-[#1b1c1c]">{n.title}</p>
+                    <p className="text-[13px] text-gray-500 mt-0.5 line-clamp-2">{n.description}</p>
+                    <p className="text-[11px] text-gray-400 mt-1">{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</p>
+                  </div>
+                  {!n.is_read && <div className="w-2 h-2 bg-[#ff6b1a] rounded-full flex-shrink-0 mt-2" />}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
