@@ -1,98 +1,64 @@
-import React, { useState } from 'react';
-import Topbar from '../components/Topbar';
+import React, { useState, useEffect } from 'react';
 import AdminSidebar from '../components/AdminSidebar';
-import { adminReports } from '../data/mockData';
+import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
 const AdminReports = () => {
   const { showToast } = useToast();
-  const [reports, setReports] = useState(adminReports);
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const remove = (id, action) => {
-    setReports((prev) => prev.filter((r) => r.id !== id));
-    if (action === 'remove') showToast('Listing removed.', 'success');
-    else if (action === 'suspend') showToast('User suspended.', 'error');
-    else showToast('Report dismissed.', 'neutral');
+  useEffect(() => {
+    api.adminReports().then(setReports).catch(console.error).finally(() => setLoading(false));
+  }, []);
+
+  const resolve = async (id, action) => {
+    try {
+      await api.resolveReport(id, { status: 'resolved', action });
+      setReports((prev) => prev.filter((r) => r.id !== id));
+      showToast('Report resolved', 'success');
+    } catch { showToast('Failed to resolve', 'error'); }
   };
 
-  return (
-    <div className="min-h-screen bg-[#fcf9f8]">
-      <Topbar />
-      <div className="max-w-7xl mx-auto flex">
-        <AdminSidebar />
-        <main className="flex-1 p-8">
-          <div className="mb-8">
-            <h1 className="text-[32px] font-black text-[#1b1c1c]">Reports Queue</h1>
-            <p className="text-[14px] text-gray-400 mt-1">
-              {reports.length} pending report{reports.length !== 1 ? 's' : ''}
-            </p>
-          </div>
+  const severityColor = (s) =>
+    s === 'high' ? 'bg-red-100 text-red-600' : s === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500';
 
-          {reports.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center text-gray-400">
-              <span className="material-symbols-outlined text-[64px] mb-4">check_circle</span>
-              <h3 className="font-bold text-[20px] mb-2">All clear!</h3>
-              <p className="text-[14px]">No pending reports in the queue.</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-5">
-              {reports
-                .sort((a, b) => b.reportCount - a.reportCount)
-                .map((r) => (
-                  <div
-                    key={r.id}
-                    className={`bg-white rounded-2xl border-2 shadow-sm p-6 ${
-                      r.severity === 'high' ? 'border-red-300' : r.severity === 'medium' ? 'border-yellow-300' : 'border-gray-100'
-                    }`}
-                  >
-                    <div className="flex gap-5">
-                      <div className="w-24 h-20 rounded-xl overflow-hidden flex-shrink-0">
-                        <img src={r.listing.image} alt="" className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <h3 className="font-bold text-[16px] text-[#1b1c1c] mb-1">{r.listing.title}</h3>
-                            <div className="flex items-center gap-2">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
-                                r.severity === 'high' ? 'bg-red-100 text-red-600' : r.severity === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'
-                              }`}>
-                                {r.reportCount} reports
-                              </span>
-                              <span className="text-[12px] text-gray-500">{r.reason}</span>
-                            </div>
-                          </div>
-                          <span className="text-[12px] text-gray-400">{r.date}</span>
-                        </div>
-                        <p className="text-[12px] text-gray-500 mb-4">Reported by: {r.reporter}</p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => remove(r.id, 'remove')}
-                            className="px-5 py-2 bg-red-600 text-white rounded-xl font-bold text-[12px] hover:bg-red-700 transition-all"
-                          >
-                            Remove Listing
-                          </button>
-                          <button
-                            onClick={() => remove(r.id, 'suspend')}
-                            className="px-5 py-2 border-2 border-orange-400 text-orange-600 rounded-xl font-bold text-[12px] hover:bg-orange-50 transition-all"
-                          >
-                            Suspend Seller
-                          </button>
-                          <button
-                            onClick={() => remove(r.id, 'dismiss')}
-                            className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl font-bold text-[12px] hover:bg-gray-50 transition-all"
-                          >
-                            Dismiss
-                          </button>
-                        </div>
-                      </div>
+  return (
+    <div className="min-h-screen bg-[#fcf9f8] flex">
+      <AdminSidebar activePage="reports" />
+      <main className="flex-1 p-8">
+        <h1 className="text-[28px] font-black text-[#1b1c1c] mb-8">Reports</h1>
+        {loading ? (
+          <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-[#ff6b1a] border-t-transparent rounded-full animate-spin" /></div>
+        ) : reports.length === 0 ? (
+          <div className="text-center py-20 text-gray-400">
+            <span className="material-symbols-outlined text-[48px] mb-3 block">check_circle</span>
+            <p className="font-semibold">No pending reports</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {reports.map((r) => (
+              <div key={r.id} className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${severityColor(r.severity)}`}>{r.severity?.toUpperCase() || 'REPORT'}</span>
+                      <span className="text-[12px] text-gray-400">{r.reason}</span>
                     </div>
+                    <p className="text-[14px] font-semibold text-[#1b1c1c]">Listing: {r.listing_id}</p>
+                    {r.description && <p className="text-[13px] text-gray-500 mt-1">{r.description}</p>}
+                    <p className="text-[11px] text-gray-400 mt-2">{new Date(r.created_at).toLocaleString()}</p>
                   </div>
-                ))}
-            </div>
-          )}
-        </main>
-      </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => resolve(r.id, 'remove_listing')} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-[12px] font-bold hover:bg-red-100">Remove</button>
+                    <button onClick={() => resolve(r.id, 'dismiss')} className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-[12px] font-bold hover:bg-gray-200">Dismiss</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
     </div>
   );
 };

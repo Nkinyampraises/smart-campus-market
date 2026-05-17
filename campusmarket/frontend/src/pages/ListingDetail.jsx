@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { listings, featuredListing, similarItems, formatFCFA } from '../data/listings';
+import { api } from '../services/api';
+import { formatFCFA } from '../utils/format';
 import Topbar from '../components/Topbar';
 import OfferModal from '../components/modals/OfferModal';
 import ReportModal from '../components/modals/ReportModal';
@@ -12,12 +13,30 @@ const ListingDetail = () => {
   const { id } = useParams();
   const { showToast } = useToast();
 
-  const listing = listings.find((l) => l.id === Number(id)) || featuredListing;
-
+  const [listing, setListing]         = useState(null);
+  const [loading, setLoading]         = useState(true);
   const [activeImage, setActiveImage] = useState(0);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [showBuyModal, setShowBuyModal] = useState(false);
+  const [showBuyModal, setShowBuyModal]       = useState(false);
+
+  useEffect(() => {
+    api.getListing(id)
+      .then((data) => {
+        // Normalise API field names to match component expectations
+        setListing({
+          ...data,
+          priceFCFA:  data.price_fcfa,
+          location:   data.campus_zone,
+          meetingAt:  data.campus_zone,
+          images:     data.images || [],
+          tags:       data.tags   || [],
+          seller:     { name: data.seller_name || 'Seller', initials: 'S', color: '#ff6b1a', rating: 0, reviews: 0, id: data.seller_id },
+        });
+      })
+      .catch(() => showToast('Listing not found', 'error'))
+      .finally(() => setLoading(false));
+  }, [id]);
 
   const getWishlist = () => {
     try { return JSON.parse(localStorage.getItem('campustrade_wishlist') || '[]'); } catch { return []; }
@@ -34,12 +53,26 @@ const ListingDetail = () => {
     } else {
       localStorage.setItem('campustrade_wishlist', JSON.stringify([
         ...current,
-        { id: listing.id, listingId: listing.id, title: listing.title, priceFCFA: listing.priceFCFA, image: listing.images[0], category: listing.category, location: listing.location },
+        { id: listing.id, listingId: listing.id, title: listing.title, priceFCFA: listing.priceFCFA, image: listing.images?.[0], category: listing.category, location: listing.location },
       ]));
       setSaved(true);
       showToast('Added to wishlist!', 'success');
     }
   };
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#fcf9f8] flex items-center justify-center">
+      <div className="w-10 h-10 border-4 border-[#ff6b1a] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  if (!listing) return (
+    <div className="min-h-screen bg-[#fcf9f8] flex flex-col items-center justify-center gap-4">
+      <span className="material-symbols-outlined text-[48px] text-gray-300">search_off</span>
+      <p className="text-gray-500 font-semibold">Listing not found</p>
+      <button onClick={() => navigate('/browse')} className="px-6 py-2.5 bg-[#ff6b1a] text-white rounded-full font-bold">Browse All</button>
+    </div>
+  );
 
   const conditionColor =
     listing.condition === 'Excellent Condition' || listing.condition === 'Like New'
@@ -69,7 +102,7 @@ const ListingDetail = () => {
           {/* Left — Images */}
           <div>
             <div className="rounded-2xl overflow-hidden bg-gray-100 mb-4" style={{ height: '420px' }}>
-              <img src={listing.images[activeImage]} alt={listing.title} className="w-full h-full object-cover" />
+              <img src={listing.images?.[activeImage] || 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=800&h=600&fit=crop'} alt={listing.title} className="w-full h-full object-cover" />
             </div>
             <div className="grid grid-cols-4 gap-3">
               {listing.images.slice(0, 3).map((img, i) => (
@@ -225,23 +258,20 @@ const ListingDetail = () => {
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {similarItems.map((item) => (
+            {[].map((item) => (
               <div
                 key={item.id}
                 onClick={() => navigate(`/listing/${item.id}`)}
                 className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group"
               >
                 <div className="relative overflow-hidden" style={{ height: '160px' }}>
-                  <img
-                    src={item.image}
-                    alt={item.title}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
+                  <img src={item.images?.[0] || item.image} alt={item.title}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                 </div>
                 <div className="p-4">
-                  <p className="text-[18px] font-black text-[#ff6b1a] mb-1">{formatFCFA(item.priceFCFA)}</p>
+                  <p className="text-[18px] font-black text-[#ff6b1a] mb-1">{formatFCFA(item.price_fcfa || item.priceFCFA)}</p>
                   <h3 className="text-[14px] font-bold text-[#1b1c1c] mb-1 leading-snug truncate">{item.title}</h3>
-                  <p className="text-[12px] text-gray-400">{item.category} · {item.location}</p>
+                  <p className="text-[12px] text-gray-400">{item.category} · {item.campus_zone || item.location}</p>
                 </div>
               </div>
             ))}

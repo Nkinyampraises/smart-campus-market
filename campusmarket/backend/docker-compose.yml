@@ -1,0 +1,291 @@
+version: '3.9'
+
+services:
+
+  # ── Infrastructure ────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: campustrade
+      POSTGRES_PASSWORD: campustrade_pass
+      POSTGRES_DB: campustrade
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campustrade"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Microservices ─────────────────────────────────────────────────────────
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: api-gateway
+        PORT: 3000
+    restart: unless-stopped
+    ports:
+      - "8080:3000"
+    environment:
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-campustrade_secret}
+      FRONTEND_URL: http://localhost:5173
+      AUTH_SERVICE_URL: http://auth-service:3001
+      USER_SERVICE_URL: http://user-service:3002
+      LISTING_SERVICE_URL: http://listing-service:3003
+      CHAT_SERVICE_URL: http://chat-service:3004
+      ADMIN_SERVICE_URL: http://admin-service:3005
+      AI_SERVICE_URL: http://ai-service:3006
+      SEARCH_SERVICE_URL: http://search-service:3007
+      NOTIFICATION_SERVICE_URL: http://notification-service:3008
+    depends_on:
+      - auth-service
+      - listing-service
+      - user-service
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: auth-service
+        PORT: 3001
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      SERVICE_NAME: auth-service
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: campustrade
+      DB_PASSWORD: campustrade_pass
+      DB_NAME: campustrade
+      JWT_SECRET: ${JWT_SECRET:-campustrade_secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  user-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: user-service
+        PORT: 3002
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      SERVICE_NAME: user-service
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: campustrade
+      DB_PASSWORD: campustrade_pass
+      DB_NAME: campustrade
+      JWT_SECRET: ${JWT_SECRET:-campustrade_secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  listing-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: listing-service
+        PORT: 3003
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+      SERVICE_NAME: listing-service
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: campustrade
+      DB_PASSWORD: campustrade_pass
+      DB_NAME: campustrade
+      JWT_SECRET: ${JWT_SECRET:-campustrade_secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  chat-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: chat-service
+        PORT: 3004
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    environment:
+      PORT: 3004
+      SERVICE_NAME: chat-service
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: campustrade
+      DB_PASSWORD: campustrade_pass
+      DB_NAME: campustrade
+      JWT_SECRET: ${JWT_SECRET:-campustrade_secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  admin-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: admin-service
+        PORT: 3005
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    environment:
+      PORT: 3005
+      SERVICE_NAME: admin-service
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: campustrade
+      DB_PASSWORD: campustrade_pass
+      DB_NAME: campustrade
+      JWT_SECRET: ${JWT_SECRET:-campustrade_secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: ai-service
+        PORT: 3006
+    restart: unless-stopped
+    ports:
+      - "3006:3006"
+    environment:
+      PORT: 3006
+      SERVICE_NAME: ai-service
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: campustrade
+      DB_PASSWORD: campustrade_pass
+      DB_NAME: campustrade
+      JWT_SECRET: ${JWT_SECRET:-campustrade_secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  search-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: search-service
+        PORT: 3007
+    restart: unless-stopped
+    ports:
+      - "3007:3007"
+    environment:
+      PORT: 3007
+      SERVICE_NAME: search-service
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: campustrade
+      DB_PASSWORD: campustrade_pass
+      DB_NAME: campustrade
+      JWT_SECRET: ${JWT_SECRET:-campustrade_secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: notification-service
+        PORT: 3008
+    restart: unless-stopped
+    ports:
+      - "3008:3008"
+    environment:
+      PORT: 3008
+      SERVICE_NAME: notification-service
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: campustrade
+      DB_PASSWORD: campustrade_pass
+      DB_NAME: campustrade
+      JWT_SECRET: ${JWT_SECRET:-campustrade_secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      FROM_EMAIL: ${FROM_EMAIL:-noreply@campustrade.cm}
+      FRONTEND_URL: http://localhost:5173
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

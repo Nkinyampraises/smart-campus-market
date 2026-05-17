@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { mockNotifications } from '../data/mockData';
+import { api } from '../services/api';
 
 const Topbar = ({ activePage }) => {
   const navigate = useNavigate();
@@ -10,8 +10,14 @@ const Topbar = ({ activePage }) => {
   const { showToast } = useToast();
   const [query, setQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  const unreadCount = mockNotifications.filter((n) => !n.read).length;
+  React.useEffect(() => {
+    if (!isLoggedIn) return;
+    api.getNotifications()
+      .then((ns) => setUnreadCount(ns.filter((n) => !n.is_read).length))
+      .catch(() => {});
+  }, [isLoggedIn]);
 
   const handleSearch = (e) => {
     if (e.key === 'Enter' && query.trim()) {
@@ -23,7 +29,7 @@ const Topbar = ({ activePage }) => {
   const handleLogout = () => {
     logout();
     showToast('Logged out successfully', 'neutral');
-    navigate('/login');
+    navigate('/home');
   };
 
   const isActive = (page) => activePage === page;

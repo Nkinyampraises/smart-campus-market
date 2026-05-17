@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { formatFCFA } from '../data/listings';
+import { formatFCFA } from '../utils/format';
 
 const ListingCard = ({ listing, onWishlist, isWishlisted, onClick }) => {
   const navigate = useNavigate();

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Topbar from '../components/Topbar';
-import { trendingListings } from '../data/mockData';
-import { formatFCFA } from '../data/listings';
+import { api } from '../services/api';
+import { formatFCFA } from '../utils/format';
 import { useAuth } from '../context/AuthContext';
 
 const heroStats = [
@@ -95,15 +95,20 @@ const Home = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('All');
+  const [trending, setTrending]   = useState([]);
+  const [recent, setRecent]       = useState([]);
 
   const tabs = ['All', 'Textbooks', 'Tech'];
 
+  React.useEffect(() => {
+    api.getListings({ limit: 4 }).then(setTrending).catch(() => {});
+    api.getListings({ limit: 4, page: 2 }).then(setRecent).catch(() => {});
+  }, []);
+
   const filteredRecent =
-    activeTab === 'All'
-      ? recentListings
-      : activeTab === 'Textbooks'
-      ? recentListings.filter((l) => l.category === 'Textbooks')
-      : recentListings.filter((l) => l.category === 'Electronics');
+    activeTab === 'All' ? recent :
+    activeTab === 'Textbooks' ? recent.filter((l) => l.category === 'Textbooks') :
+    recent.filter((l) => l.category === 'Electronics');
 
   return (
     <div className="min-h-screen bg-[#fcf9f8]">
@@ -188,10 +193,12 @@ const Home = () => {
           </div>
           <p className="text-[14px] text-gray-400 mb-6">The most viewed items on campus this week</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {trendingListings.map((listing) => (
+            {trending.length === 0 ? (
+              <p className="text-gray-400 col-span-4 text-center py-8">No listings yet — be the first to post!</p>
+            ) : trending.map((listing) => (
               <HomeCard
                 key={listing.id}
-                listing={listing}
+                listing={{ ...listing, priceFCFA: listing.price_fcfa, location: listing.campus_zone, postedAgo: listing.created_at }}
                 onClick={() => navigate(`/listing/${listing.id}`)}
               />
             ))}
@@ -226,7 +233,7 @@ const Home = () => {
               filteredRecent.map((listing) => (
                 <HomeCard
                   key={listing.id}
-                  listing={listing}
+                  listing={{ ...listing, priceFCFA: listing.price_fcfa, location: listing.campus_zone, postedAgo: listing.created_at }}
                   showTime
                   onClick={() => navigate(`/listing/${listing.id}`)}
                 />

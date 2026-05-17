@@ -7,8 +7,7 @@ let subscriber;
 async function initRedis() {
   try {
     publisher = createClient({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: process.env.REDIS_PORT || 6379,
+      url: `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`,
     });
 
     subscriber = publisher.duplicate();

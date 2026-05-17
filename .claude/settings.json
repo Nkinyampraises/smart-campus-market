@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('packages',{}\\).get\\('',{}\\).get\\('dependencies',{}\\), indent=2\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); p=d.get\\('packages',{}\\).get\\('',{}\\); print\\('name:', p.get\\('name'\\)\\); print\\('version:', p.get\\('version'\\)\\); print\\('deps:', list\\(p.get\\('dependencies',{}\\).keys\\(\\)\\)[:10]\\); print\\('devDeps:', list\\(p.get\\('devDependencies',{}\\).keys\\(\\)\\)[:10]\\)\")",
+      "Bash(node -e \"const d=require\\('c:/Users/MATRIX TECHNOLOGY/Documents/smart campus market/campusmarket/frontend/package-lock.json'\\); const p=d.packages['']||{}; console.log\\('name:',p.name\\); console.log\\('deps:',Object.keys\\(p.dependencies||{}\\)\\); console.log\\('devDeps:',Object.keys\\(p.devDependencies||{}\\)\\)\")",
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(node -e ' *)",
+      "Bash(docker compose *)",
+      "Bash(docker info *)",
+      "Bash(netstat -ano)",
+      "Bash(tasklist /FI \"PID eq 9904\" /FO LIST)",
+      "PowerShell(Get-Process -Id 9904)",
+      "Bash(docker builder *)",
+      "Bash(npx vite *)",
+      "Bash(docker exec *)",
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/register -H \"Content-Type: application/json\" -d \"{\\\\\"email\\\\\":\\\\\"test@ictuniversity.edu.cm\\\\\",\\\\\"password\\\\\":\\\\\"Test1234!\\\\\"}\")"
+    ]
+  }
+}

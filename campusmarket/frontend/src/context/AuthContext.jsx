@@ -1,93 +1,78 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { currentUser } from '../data/mockData';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { api, saveToken, clearToken } from '../services/api';
 
 const AuthContext = createContext(null);
 
-const STORAGE_KEY = 'campustrade_auth';
-
-const getStoredAuth = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored);
-  } catch {
-    // ignore
-  }
-  // Default: logged in for demo
-  return { isLoggedIn: true, user: currentUser };
-};
-
 export const AuthProvider = ({ children }) => {
-  const [authState, setAuthState] = useState(getStoredAuth);
+  const [user, setUser]           = useState(null);
+  const [isLoggedIn, setLoggedIn] = useState(false);
+  const [loading, setLoading]     = useState(true);
 
-  const persistAuth = (state) => {
-    setAuthState(state);
+  // On mount — restore session from stored token
+  useEffect(() => {
+    const token = localStorage.getItem('campustrade_token');
+    if (!token) { setLoading(false); return; }
+
+    api.getMe()
+      .then((u) => { setUser(u); setLoggedIn(true); })
+      .catch(() => { clearToken(); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const login = useCallback(async (email, password) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // ignore
+      const data = await api.login(email, password);
+      saveToken(data.accessToken);
+      const me = await api.getMe();
+      setUser(me);
+      setLoggedIn(true);
+      return { success: true, user: me };
+    } catch (err) {
+      if (err.message?.includes('suspended')) return { success: false, suspended: true };
+      return { success: false, error: err.message };
     }
-  };
+  }, []);
 
-  const login = useCallback((email, password) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // Simulate: check for suspended account
-        if (email.includes('suspended')) {
-          resolve({ success: false, suspended: true });
-          return;
-        }
-        const user = { ...currentUser, email };
-        persistAuth({ isLoggedIn: true, user });
-        resolve({ success: true, user });
-      }, 800);
-    });
+  const register = useCallback(async (form) => {
+    try {
+      await api.register({
+        email:       form.email,
+        password:    form.password,
+        first_name:  form.firstName,
+        last_name:   form.lastName,
+        campus_zone: form.campusZone,
+      });
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   }, []);
 
   const logout = useCallback(() => {
-    persistAuth({ isLoggedIn: false, user: null });
-    localStorage.removeItem(STORAGE_KEY);
+    clearToken();
+    setUser(null);
+    setLoggedIn(false);
   }, []);
 
-  const register = useCallback((data) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const newUser = {
-          ...currentUser,
-          ...data,
-          name: `${data.firstName} ${data.lastName}`,
-          initials: `${data.firstName[0]}${data.lastName[0]}`.toUpperCase(),
-          id: `u_${Date.now()}`,
-        };
-        // Don't log in yet – they must verify email
-        resolve({ success: true, user: newUser });
-      }, 800);
-    });
+  const updateUser = useCallback(async (updates) => {
+    try {
+      await api.updateMe(updates);
+      setUser((prev) => ({ ...prev, ...updates }));
+    } catch (err) {
+      console.error('Failed to update user:', err);
+    }
   }, []);
 
-  const updateUser = useCallback((updates) => {
-    setAuthState((prev) => {
-      const next = { ...prev, user: { ...prev.user, ...updates } };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  }, []);
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#fcf9f8]">
+        <div className="w-8 h-8 border-4 border-[#ff6b1a] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
-    <AuthContext.Provider
-      value={{
-        isLoggedIn: authState.isLoggedIn,
-        user: authState.user,
-        login,
-        logout,
-        register,
-        updateUser,
-      }}
-    >
+    <AuthContext.Provider value={{ user, isLoggedIn, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
