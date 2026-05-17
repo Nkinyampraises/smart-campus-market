@@ -3,3 +3,7 @@ node_modules/
 .env
 dist/
 *.log
+
+# Claude Code — local AI assistant config, never commit
+.claude/
+**/.claude/
