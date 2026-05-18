@@ -252,21 +252,13 @@ const SignUp = () => {
 
       {/* Right Section: Visual Panel */}
       <section
-        className="hidden md:flex md:w-[55%] relative overflow-hidden bg-gradient-to-br from-[#ffdbcd] to-white items-center justify-center p-20"
+        className="hidden md:flex md:w-[55%] relative overflow-hidden items-center justify-center p-20"
         style={{
-          backgroundImage: `url(${campusImage})`,
+          backgroundImage: `linear-gradient(135deg, rgba(255, 219, 205, 0.85) 0%, rgba(255, 255, 255, 0.7) 100%), url(${campusImage})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
       >
-        {/* Background overlay image */}
-        <div className="absolute inset-0 z-0">
-          <img
-            src={campusImage}
-            alt="Campus"
-            className="w-full h-full object-cover opacity-10 mix-blend-multiply"
-          />
-        </div>
 
         {/* Content Overlay */}
         <div className="relative z-10 w-full max-w-2xl space-y-12">
