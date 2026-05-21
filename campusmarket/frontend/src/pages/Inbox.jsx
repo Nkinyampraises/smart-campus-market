@@ -9,7 +9,7 @@ const Inbox = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.getConversations().then(setConversations).catch(console.error).finally(() => setLoading(false));
+    api.getConversations().then(setConversations).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   return (

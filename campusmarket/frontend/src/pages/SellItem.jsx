@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../services/api';
+import { useToast } from '../context/ToastContext';
 
 const CATEGORY_SUGGESTIONS = {
   Textbooks:   { min: 5000,   max: 36000  },
@@ -32,36 +34,24 @@ const DEFAULT_IMAGES = {
 
 const formatFCFA = (n) => Number(n).toLocaleString('fr-FR') + ' FCFA';
 
-const saveListing = (form, previews) => {
-  const stored = JSON.parse(localStorage.getItem('campustrade_listings') || '[]');
-  const newItem = {
-    id: Date.now(),
+const publishToBackend = async (form, previews) => {
+  const zone = CAMPUS_ZONES.find((z) => z.id === form.campusZone);
+  const payload = {
     title: form.title,
-    category: form.category,
-    subcategory: form.category,
-    priceFCFA: Number(form.price),
-    price: Number(form.price),
-    condition: form.condition,
     description: form.description,
-    campusZone: form.campusZone,
-    status: 'Active',
-    views: 0,
-    saves: 0,
-    inquiries: 0,
-    postedAgo: 'Just now',
-    image: previews[0] || DEFAULT_IMAGES[form.category] || DEFAULT_IMAGES.Textbooks,
-    images: previews.length
-      ? previews
-      : [DEFAULT_IMAGES[form.category] || DEFAULT_IMAGES.Textbooks],
-    location: CAMPUS_ZONES.find((z) => z.id === form.campusZone)?.label || 'Campus',
-    seller: { name: 'You', initials: 'ME', color: '#ff6b1a', rating: 5.0, reviews: 0 },
-    createdAt: Date.now(),
+    category: form.category,
+    price_fcfa: Number(form.price),
+    condition: form.condition,
+    campus_zone: zone?.label || form.campusZone,
+    tags: [form.category],
+    images: previews.length ? previews : [DEFAULT_IMAGES[form.category] || DEFAULT_IMAGES.Textbooks],
   };
-  localStorage.setItem('campustrade_listings', JSON.stringify([newItem, ...stored]));
+  return await api.createListing(payload);
 };
 
 const SellItem = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const fileRef = useRef(null);
 
   const [step, setStep] = useState(1);
@@ -113,9 +103,13 @@ const SellItem = () => {
     window.scrollTo(0, 0);
   };
 
-  const handlePublish = () => {
-    saveListing(form, previews);
-    setPublished(true);
+  const handlePublish = async () => {
+    try {
+      await publishToBackend(form, previews);
+      setPublished(true);
+    } catch (err) {
+      showToast(err.message || 'Failed to publish listing', 'error');
+    }
   };
 
   const StepIndicator = () => (
@@ -586,7 +580,7 @@ const SellItem = () => {
         {/* ── Bottom Action Bar ── */}
         <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
           <button
-            onClick={() => { saveListing(form, previews); navigate('/my-listings'); }}
+            onClick={() => { showToast('Draft saved locally', 'neutral'); navigate('/my-listings'); }}
             className="px-6 py-3 border-2 border-gray-200 rounded-xl font-bold text-[14px] text-[#1b1c1c] hover:bg-gray-50 transition-all"
           >
             SAVE AS DRAFT

@@ -140,13 +140,55 @@ CREATE TABLE IF NOT EXISTS search_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ── Wishlist ────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS wishlist (
+  user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
+  listing_id  UUID REFERENCES listings(id) ON DELETE CASCADE,
+  added_at    TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (user_id, listing_id)
+);
+
+-- ── Transactions ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS transactions (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  listing_id   UUID REFERENCES listings(id) ON DELETE SET NULL,
+  buyer_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+  seller_id    UUID REFERENCES users(id) ON DELETE SET NULL,
+  final_price  INT NOT NULL,
+  completed_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── Listing Images (normalized) ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS listing_images (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  listing_id  UUID REFERENCES listings(id) ON DELETE CASCADE,
+  image_url   TEXT NOT NULL,
+  sort_order  INT DEFAULT 0
+);
+
+-- ── Add missing columns ───────────────────────────────────────────────────────
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS unread_count INT DEFAULT 0;
+
 -- ── Indexes ──────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_users_email         ON users(email);
 CREATE INDEX IF NOT EXISTS idx_listings_category   ON listings(category);
 CREATE INDEX IF NOT EXISTS idx_listings_status     ON listings(status);
 CREATE INDEX IF NOT EXISTS idx_listings_seller     ON listings(seller_id);
 CREATE INDEX IF NOT EXISTS idx_listings_campus     ON listings(campus_zone);
+CREATE INDEX IF NOT EXISTS idx_listings_active_cat ON listings(status, category, created_at);
 CREATE INDEX IF NOT EXISTS idx_offers_listing      ON offers(listing_id);
+CREATE INDEX IF NOT EXISTS idx_offers_buyer        ON offers(buyer_id);
 CREATE INDEX IF NOT EXISTS idx_messages_conv       ON messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_messages_read       ON messages(conversation_id, is_read);
 CREATE INDEX IF NOT EXISTS idx_notifications_user  ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read);
 CREATE INDEX IF NOT EXISTS idx_search_vector       ON search_index USING GIN(search_vector);
+CREATE INDEX IF NOT EXISTS idx_wishlist_user       ON wishlist(user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_seller ON transactions(seller_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_buyer  ON transactions(buyer_id);
+CREATE INDEX IF NOT EXISTS idx_reports_listing     ON reports(listing_id);
+CREATE INDEX IF NOT EXISTS idx_reports_status      ON reports(status);
+CREATE INDEX IF NOT EXISTS idx_fraud_flags_resolved ON fraud_flags(resolved);
+CREATE INDEX IF NOT EXISTS idx_listings_expires    ON listings(expires_at) WHERE status = 'active';

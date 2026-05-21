@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Topbar from '../components/Topbar';
 import { useToast } from '../context/ToastContext';
-import { listings } from '../data/listings';
+import { api } from '../services/api';
 
 const CATEGORIES = ['Textbooks', 'Electronics', 'Housing', 'Clothing', 'Services', 'Accessories'];
 const CONDITIONS = ['New / Unopened', 'Excellent Condition', 'Good Condition', 'Used', 'For Parts'];
@@ -12,67 +12,87 @@ const EditListing = () => {
   const { id } = useParams();
   const { showToast } = useToast();
 
-  const getListing = () => {
-    const stored = JSON.parse(localStorage.getItem('campustrade_listings') || '[]');
-    const all = [...stored, ...listings];
-    return all.find((l) => String(l.id) === String(id));
-  };
-
-  const source = getListing();
-
+  const [source, setSource] = useState(null);
   const [form, setForm] = useState({
-    title: source?.title || '',
-    description: source?.description || '',
-    category: source?.category || 'Textbooks',
-    condition: source?.condition || 'Good Condition',
-    price: source?.priceFCFA || source?.price || '',
+    title: '',
+    description: '',
+    category: 'Textbooks',
+    condition: 'Good Condition',
+    price: '',
   });
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useEffect(() => {
+    api.getListing(id).then((data) => {
+      setSource(data);
+      setForm({
+        title: data.title || '',
+        description: data.description || '',
+        category: data.category || 'Textbooks',
+        condition: data.condition || 'Good Condition',
+        price: data.price_fcfa || data.price || '',
+      });
+      setPageLoading(false);
+    }).catch(() => setPageLoading(false));
+  }, [id]);
 
   const set = (field, value) => setForm((p) => ({ ...p, [field]: value }));
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setLoading(true);
-    setTimeout(() => {
-      // Update in localStorage
-      const stored = JSON.parse(localStorage.getItem('campustrade_listings') || '[]');
-      const updated = stored.map((l) =>
-        String(l.id) === String(id)
-          ? { ...l, ...form, priceFCFA: Number(form.price), price: Number(form.price) }
-          : l
-      );
-      localStorage.setItem('campustrade_listings', JSON.stringify(updated));
-      setLoading(false);
+    try {
+      await api.updateListing(id, {
+        title: form.title,
+        description: form.description,
+        category: form.category,
+        condition: form.condition,
+        price_fcfa: Number(form.price),
+      });
       showToast('Listing updated!', 'success');
       navigate('/my-listings');
-    }, 800);
+    } catch (err) {
+      showToast(err.message || 'Update failed', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleMarkSold = () => {
-    const stored = JSON.parse(localStorage.getItem('campustrade_listings') || '[]');
-    const updated = stored.map((l) =>
-      String(l.id) === String(id) ? { ...l, status: 'Sold' } : l
-    );
-    localStorage.setItem('campustrade_listings', JSON.stringify(updated));
-    showToast('Listing marked as Sold!', 'success');
-    navigate('/my-listings');
+  const handleMarkSold = async () => {
+    try {
+      await api.sellListing(id, {});
+      showToast('Listing marked as Sold!', 'success');
+      navigate('/my-listings');
+    } catch (err) {
+      showToast(err.message || 'Action failed', 'error');
+    }
   };
 
-  const handleDelete = () => {
-    const stored = JSON.parse(localStorage.getItem('campustrade_listings') || '[]');
-    const updated = stored.filter((l) => String(l.id) !== String(id));
-    localStorage.setItem('campustrade_listings', JSON.stringify(updated));
-    showToast('Listing deleted', 'neutral');
-    navigate('/my-listings');
+  const handleDelete = async () => {
+    try {
+      await api.deleteListing(id);
+      showToast('Listing deleted', 'neutral');
+      navigate('/my-listings');
+    } catch (err) {
+      showToast(err.message || 'Delete failed', 'error');
+    }
   };
 
   const stats = [
     { label: 'Views', value: source?.views || 0, icon: 'visibility' },
     { label: 'Wishlists', value: source?.saves || 0, icon: 'favorite' },
     { label: 'Offers', value: source?.inquiries || 0, icon: 'local_offer' },
-    { label: 'Days Left', value: 28, icon: 'timer' },
+    { label: 'Days Left', value: source?.expires_at ? Math.max(0, Math.ceil((new Date(source.expires_at) - new Date()) / (1000 * 60 * 60 * 24))) : 30, icon: 'timer' },
   ];
+
+  if (pageLoading) {
+    return (
+      <div className="min-h-screen bg-[#fcf9f8] flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-[#ff6b1a] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!source) {
     return (

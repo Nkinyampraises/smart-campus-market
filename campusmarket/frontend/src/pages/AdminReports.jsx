@@ -9,7 +9,7 @@ const AdminReports = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.adminReports().then(setReports).catch(console.error).finally(() => setLoading(false));
+    api.adminReports().then(setReports).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const resolve = async (id, action) => {

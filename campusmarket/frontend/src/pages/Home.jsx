@@ -1,54 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Topbar from '../components/Topbar';
 import { api } from '../services/api';
 import { formatFCFA } from '../utils/format';
-import { useAuth } from '../context/AuthContext';
 
-const heroStats = [
-  { label: 'Active Listings', value: '15k+' },
-  { label: 'Campuses Connected', value: '50+' },
-  { label: 'Average Sell Time', value: '24h' },
-  { label: 'Verified Users', value: '99%' },
-];
-
-const recentListings = [
-  {
-    id: 'r1',
-    title: 'TI-84 Plus CE Graphing',
-    category: 'Electronics',
-    priceFCFA: 35000,
-    location: 'Engineering Block',
-    postedAgo: '2 min ago',
-    images: ['https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=600&h=400&fit=crop'],
-  },
-  {
-    id: 'r2',
-    title: '27" 4K LG Monitor',
-    category: 'Electronics',
-    priceFCFA: 95000,
-    location: 'Student Union',
-    postedAgo: '15 min ago',
-    images: ['https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=600&h=400&fit=crop'],
-  },
-  {
-    id: 'r3',
-    title: 'Fujifilm X-T30 II + 35mm',
-    category: 'Electronics',
-    priceFCFA: 285000,
-    location: 'Arts Block',
-    postedAgo: '42 min ago',
-    images: ['https://images.unsplash.com/photo-1452780212940-6f5c0d14d848?w=600&h=400&fit=crop'],
-  },
-  {
-    id: 'r4',
-    title: 'Bose QuietComfort 35',
-    category: 'Electronics',
-    priceFCFA: 55000,
-    location: 'Science Block',
-    postedAgo: '1 hour ago',
-    images: ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=400&fit=crop'],
-  },
+const defaultStats = [
+  { label: 'Active Listings', value: '-' },
+  { label: 'Verified Users', value: '-' },
+  { label: 'Transactions', value: '-' },
+  { label: 'Messages', value: '-' },
 ];
 
 const HomeCard = ({ listing, onClick, showTime = false }) => {
@@ -93,16 +53,33 @@ const HomeCard = ({ listing, onClick, showTime = false }) => {
 
 const Home = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('All');
   const [trending, setTrending]   = useState([]);
   const [recent, setRecent]       = useState([]);
+  const [stats, setStats]         = useState(defaultStats);
 
   const tabs = ['All', 'Textbooks', 'Tech'];
 
-  React.useEffect(() => {
+  useEffect(() => {
     api.getListings({ limit: 4 }).then(setTrending).catch(() => {});
     api.getListings({ limit: 4, page: 2 }).then(setRecent).catch(() => {});
+    api.trending().then((data) => {
+      if (Array.isArray(data)) setTrending(data.slice(0, 4));
+      if (data?.trending_listings) setTrending(data.trending_listings.slice(0, 4));
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    api.adminPublicStats().then((s) => {
+      if (s) {
+        setStats([
+          { label: 'Active Listings', value: s.activeListings?.toLocaleString() || '-' },
+          { label: 'Verified Users', value: s.verifiedUsers?.toLocaleString() || '-' },
+          { label: 'Transactions', value: s.transactions?.toLocaleString() || '-' },
+          { label: 'Messages', value: '-' },
+        ]);
+      }
+    }).catch(() => {});
   }, []);
 
   const filteredRecent =
@@ -170,7 +147,7 @@ const Home = () => {
         {/* Stats */}
         <section className="border-y border-gray-100 py-10 mb-14">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 divide-x divide-gray-100">
-            {heroStats.map((s) => (
+            {stats.map((s) => (
               <div key={s.label} className="text-center px-4 first:pl-0">
                 <p className="text-[34px] font-black text-[#ff6b1a] leading-none mb-1">{s.value}</p>
                 <p className="text-[12px] font-bold text-gray-400 uppercase tracking-widest">{s.label}</p>

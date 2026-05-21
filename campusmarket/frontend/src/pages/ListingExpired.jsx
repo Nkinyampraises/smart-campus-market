@@ -1,12 +1,16 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { listings, formatFCFA } from '../data/listings';
+import { api } from '../services/api';
+import { formatFCFA } from '../utils/format';
 
 const ListingExpired = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [similarItems, setSimilarItems] = useState([]);
 
-  const similarItems = listings.slice(0, 3);
+  useEffect(() => {
+    api.getListings({ limit: 3 }).then(setSimilarItems).catch(() => {});
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#fcf9f8] font-[Manrope]">
@@ -60,7 +64,7 @@ const ListingExpired = () => {
               >
                 <div className="h-40 overflow-hidden">
                   <img
-                    src={item.images[0]}
+                    src={Array.isArray(item.images) ? item.images[0]?.url || item.images[0] : item.image || ''}
                     alt={item.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
@@ -68,7 +72,7 @@ const ListingExpired = () => {
                 <div className="p-4">
                   <p className="text-[11px] font-black text-[#ff6b1a] uppercase tracking-wider mb-1">{item.category}</p>
                   <h3 className="font-bold text-[14px] text-[#1b1c1c] leading-snug mb-2 truncate">{item.title}</h3>
-                  <p className="font-black text-[16px] text-[#ff6b1a]">{formatFCFA(item.priceFCFA)}</p>
+                  <p className="font-black text-[16px] text-[#ff6b1a]">{formatFCFA(item.price_fcfa || item.priceFCFA || 0)}</p>
                 </div>
               </div>
             ))}

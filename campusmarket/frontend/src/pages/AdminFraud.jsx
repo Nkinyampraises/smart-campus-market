@@ -7,7 +7,7 @@ const AdminFraud = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.fraudFlags().then(setFlags).catch(console.error).finally(() => setLoading(false));
+    api.fraudFlags().then(setFlags).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   return (

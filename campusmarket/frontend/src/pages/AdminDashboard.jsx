@@ -9,12 +9,12 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.adminStats().then(setStats).catch(console.error).finally(() => setLoading(false));
+    api.adminStats().then(setStats).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const cards = stats ? [
     { label: 'Total Users',     value: stats.totalUsers,     icon: 'group',     color: 'text-blue-600',   bg: 'bg-blue-50' },
-    { label: 'Live Listings',   value: stats.liveListings,   icon: 'storefront',color: 'text-[#ff6b1a]', bg: 'bg-orange-50' },
+    { label: 'Live Listings',   value: stats.activeListings, icon: 'storefront',color: 'text-[#ff6b1a]', bg: 'bg-orange-50' },
     { label: 'Pending Reports', value: stats.pendingReports, icon: 'flag',      color: 'text-red-600',   bg: 'bg-red-50' },
     { label: 'Fraud Flags',     value: stats.fraudFlags,     icon: 'warning',   color: 'text-yellow-600',bg: 'bg-yellow-50' },
   ] : [];

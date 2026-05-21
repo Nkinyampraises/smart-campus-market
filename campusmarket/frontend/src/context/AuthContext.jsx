@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { api, saveToken, clearToken } from '../services/api';
 
+const REFRESH_KEY = 'campustrade_refresh';
+
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
@@ -8,14 +10,13 @@ export const AuthProvider = ({ children }) => {
   const [isLoggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading]     = useState(true);
 
-  // On mount — restore session from stored token
   useEffect(() => {
     const token = localStorage.getItem('campustrade_token');
     if (!token) { setLoading(false); return; }
 
     api.getMe()
       .then((u) => { setUser(u); setLoggedIn(true); })
-      .catch(() => { clearToken(); })
+      .catch(() => { clearToken(); localStorage.removeItem(REFRESH_KEY); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -23,6 +24,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await api.login(email, password);
       saveToken(data.accessToken);
+      if (data.refreshToken) localStorage.setItem(REFRESH_KEY, data.refreshToken);
       const me = await api.getMe();
       setUser(me);
       setLoggedIn(true);
@@ -48,8 +50,10 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try { await api.logout(); } catch {}
     clearToken();
+    localStorage.removeItem(REFRESH_KEY);
     setUser(null);
     setLoggedIn(false);
   }, []);
@@ -58,8 +62,8 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.updateMe(updates);
       setUser((prev) => ({ ...prev, ...updates }));
-    } catch (err) {
-      console.error('Failed to update user:', err);
+    } catch {
+      // Silently fail; user will see error via toast in calling component
     }
   }, []);
 

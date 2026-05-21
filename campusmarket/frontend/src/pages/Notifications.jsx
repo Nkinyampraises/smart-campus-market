@@ -20,11 +20,11 @@ const Notifications = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.getNotifications().then(setNotifications).catch(console.error).finally(() => setLoading(false));
+    api.getNotifications().then(setNotifications).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const markAllRead = async () => {
-    await api.markAllRead().catch(console.error);
+    await api.markAllRead().catch(() => {});
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
   };
 

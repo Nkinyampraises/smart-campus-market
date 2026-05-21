@@ -31,12 +31,23 @@ export const api = {
   login:       (email, password) => post('/api/auth/login', { email, password }),
   register:    (data)            => post('/api/auth/register', data),
   verifyEmail: (token)           => get(`/api/auth/verify/${token}`),
+  logout:      ()               => post('/api/auth/logout'),
+  refresh:     ()               => post('/api/auth/refresh'),
+  forgotPassword: (email)       => post('/api/auth/forgot-password', { email }),
+  resetPassword: (token, password) => post('/api/auth/reset-password', { token, password }),
+  resendVerification: (email)    => post('/api/auth/resend-verification', { email }),
 
   // ── Users ─────────────────────────────────────────────────────────────────
   getMe:       ()       => get('/api/users/me'),
   getUser:     (id)     => get(`/api/users/${id}`),
   updateMe:    (data)   => patch('/api/users/me', data),
   reviewUser:  (id, d)  => post(`/api/users/${id}/reviews`, d),
+  getTransactions: ()   => get('/api/users/me/transactions'),
+
+  // ── Wishlist ──────────────────────────────────────────────────────────────
+  getWishlist:     ()            => get('/api/wishlist'),
+  addWishlist:     (listingId)   => post(`/api/wishlist/${listingId}`),
+  removeWishlist:  (listingId)   => del(`/api/wishlist/${listingId}`),
 
   // ── Listings ──────────────────────────────────────────────────────────────
   getListings:   (params = {}) => get(`/api/listings?${new URLSearchParams(params)}`),
@@ -44,7 +55,15 @@ export const api = {
   createListing: (data)        => post('/api/listings', data),
   updateListing: (id, data)    => patch(`/api/listings/${id}`, data),
   deleteListing: (id)          => del(`/api/listings/${id}`),
+  sellListing:   (id, data)    => patch(`/api/listings/${id}/sell`, data),
+  uploadImages:  (id, formData)=> {
+    const token = getToken();
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch(`${API_BASE}/api/listings/${id}/images`, { method: 'POST', headers, body: formData }).then(r => r.json());
+  },
   makeOffer:     (id, data)    => post(`/api/listings/${id}/offers`, data),
+  getOffers:     (id)          => get(`/api/listings/${id}/offers`),
   buyNow:        (id, data)    => post(`/api/listings/${id}/buy`, data),
   getMyListings: ()            => get('/api/listings?mine=true'),
 
@@ -53,13 +72,21 @@ export const api = {
   suggestions: (q)      => get(`/api/search/suggestions?q=${encodeURIComponent(q)}`),
   trending:    ()       => get('/api/search/trending'),
 
+  // ── Offers ────────────────────────────────────────────────────────────────
+  createOffer:   (data)        => post('/api/offers', data),
+  getMyOffers:   (direction)   => get(`/api/offers?direction=${direction}`),
+  updateOffer:   (id, data)    => patch(`/api/offers/${id}`, data),
+
   // ── Chat ──────────────────────────────────────────────────────────────────
   getConversations:  ()        => get('/api/conversations'),
   getMessages:       (id)      => get(`/api/conversations/${id}/messages`),
   startConversation: (data)    => post('/api/conversations', data),
+  markRead:          (id)      => patch(`/api/conversations/${id}/read`),
 
   // ── Notifications ─────────────────────────────────────────────────────────
   getNotifications: ()  => get('/api/notifications'),
+  getUnreadCount:   ()  => get('/api/notifications/unread-count'),
+  markReadNotif:    (id) => patch(`/api/notifications/${id}/read`),
   markAllRead:      ()  => patch('/api/notifications/read-all'),
 
   // ── Reports ───────────────────────────────────────────────────────────────
@@ -67,16 +94,20 @@ export const api = {
 
   // ── Admin ─────────────────────────────────────────────────────────────────
   adminStats:     ()           => get('/api/admin/stats'),
-  adminUsers:     ()           => get('/api/admin/users'),
+  adminPublicStats: ()         => get('/api/admin/public-stats'),
+  adminUsers:     (params={})   => get(`/api/admin/users?${new URLSearchParams(params)}`),
   suspendUser:    (id, data)   => post(`/api/admin/users/${id}/suspend`, data),
   unsuspendUser:  (id)         => post(`/api/admin/users/${id}/unsuspend`),
   adminReports:   ()           => get('/api/admin/reports'),
   resolveReport:  (id, data)   => patch(`/api/admin/reports/${id}`, data),
   fraudFlags:     ()           => get('/api/admin/fraud-flags'),
+  resolveFraud:   (id)         => patch(`/api/admin/fraud-flags/${id}/resolve`),
   adminListings:  ()           => get('/api/listings'),
 
   // ── AI ────────────────────────────────────────────────────────────────────
   priceSuggestion: (data) => post('/api/ai/price-suggestion', data),
+  fraudCheck:      (data) => post('/api/ai/fraud-check', data),
+  aiTrending:      ()     => get('/api/ai/trending'),
 };
 
 export const saveToken  = (token) => localStorage.setItem('campustrade_token', token);

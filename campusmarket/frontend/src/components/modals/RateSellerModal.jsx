@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useToast } from '../../context/ToastContext';
+import { api } from '../../services/api';
 
 const RateSellerModal = ({ seller, transaction, onClose }) => {
   const { showToast } = useToast();
@@ -10,17 +11,21 @@ const RateSellerModal = ({ seller, transaction, onClose }) => {
 
   const labels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (rating === 0) {
       showToast('Please select a star rating', 'error');
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await api.reviewUser(seller?.id, { rating, comment });
       showToast('Rating submitted! Thank you for your feedback.', 'success');
       onClose();
-    }, 800);
+    } catch (err) {
+      showToast(err.message || 'Failed to submit rating', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const displayRating = hovered || rating;

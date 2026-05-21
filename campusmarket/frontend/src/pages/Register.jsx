@@ -68,6 +68,7 @@ const Register = () => {
     const result = await register(form);
     setLoading(false);
     if (result.success) {
+      localStorage.setItem('pending_verification_email', form.email);
       showToast('Account created! Please verify your email.', 'success');
       navigate('/verify-email');
     } else {

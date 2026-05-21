@@ -10,7 +10,7 @@ const AdminUsers = () => {
   const [search, setSearch]   = useState('');
 
   useEffect(() => {
-    api.adminUsers().then(setUsers).catch(console.error).finally(() => setLoading(false));
+    api.adminUsers().then(setUsers).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const toggleSuspend = async (user) => {
