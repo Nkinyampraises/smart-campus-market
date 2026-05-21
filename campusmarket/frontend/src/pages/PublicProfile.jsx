@@ -1,31 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Topbar from '../components/Topbar';
-import { mockUsers } from '../data/mockData';
-import { listings } from '../data/listings';
-import { formatFCFA } from '../data/listings';
+import { api } from '../services/api';
+import { formatFCFA } from '../utils/format';
 
 const PublicProfile = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Listings');
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const user = mockUsers.find((u) => u.id === userId) || {
-    id: userId,
-    name: 'Campus Student',
-    campusZone: 'Main Campus',
-    email: 'student@ictuniversity.edu.cm',
-    listings: 5,
-    soldItems: 20,
-    rating: 4.5,
-    reviews: [],
-    initials: 'CS',
-    color: '#5c5f60',
-    isVerified: true,
-    memberSince: '2023',
-  };
+  useEffect(() => {
+    api.getUser(userId).then((data) => {
+      setUser(data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [userId]);
 
-  const userListings = listings.slice(0, 4);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#fcf9f8] flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-[#ff6b1a] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#fcf9f8]">
+        <Topbar />
+        <div className="flex items-center justify-center h-[60vh]">
+          <p className="text-gray-400 font-bold">User not found</p>
+        </div>
+      </div>
+    );
+  }
+
+  const initials = `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`;
+  const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Campus Student';
 
   return (
     <div className="min-h-screen bg-[#fcf9f8]">
@@ -35,21 +48,11 @@ const PublicProfile = () => {
         {/* Banner */}
         <div
           className="relative rounded-3xl overflow-hidden mb-16"
-          style={{ height: '175px', background: `linear-gradient(135deg, ${user.color} 0%, #333 100%)` }}
+          style={{ height: '175px', background: 'linear-gradient(135deg, #5c5f60 0%, #333 100%)' }}
         >
-          <div
-            className="absolute inset-0 opacity-15"
-            style={{
-              backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
-              backgroundSize: '20px 20px',
-            }}
-          />
           <div className="absolute -bottom-12 left-8">
-            <div
-              className="w-24 h-24 rounded-2xl border-4 border-white shadow-xl flex items-center justify-center text-white text-[28px] font-black"
-              style={{ backgroundColor: user.color }}
-            >
-              {user.initials}
+            <div className="w-24 h-24 rounded-2xl border-4 border-white shadow-xl flex items-center justify-center text-white text-[28px] font-black bg-gray-500">
+              {initials}
             </div>
           </div>
         </div>
@@ -58,14 +61,12 @@ const PublicProfile = () => {
         <div className="ml-36 mb-6 flex items-end justify-between flex-wrap gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-[24px] font-black text-[#1b1c1c]">{user.name}</h1>
-              {user.isVerified && (
-                <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest">
-                  Verified
-                </span>
+              <h1 className="text-[24px] font-black text-[#1b1c1c]">{name}</h1>
+              {user.is_verified && (
+                <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest">Verified</span>
               )}
             </div>
-            <p className="text-[14px] text-gray-500">{user.campusZone} · Member since {user.memberSince}</p>
+            <p className="text-[14px] text-gray-500">{user.campus_zone || 'Main Campus'} · Member since {new Date(user.created_at).getFullYear()}</p>
           </div>
           <button
             onClick={() => navigate('/inbox')}
@@ -79,9 +80,9 @@ const PublicProfile = () => {
         {/* Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Listings', value: user.listings, icon: 'store' },
-            { label: 'Sold', value: user.soldItems, icon: 'sell' },
-            { label: 'Rating', value: `${user.rating} ★`, icon: 'star' },
+            { label: 'Listings', value: user.active_listings || 0, icon: 'store' },
+            { label: 'Sold', value: user.sold_items || 0, icon: 'sell' },
+            { label: 'Rating', value: `${user.rating || 0} ★`, icon: 'star' },
             { label: 'Response Rate', value: '98%', icon: 'speed' },
           ].map((s) => (
             <div key={s.label} className="bg-white border border-gray-100 rounded-2xl p-5">
@@ -112,7 +113,7 @@ const PublicProfile = () => {
 
           {activeTab === 'Listings' && (
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {userListings.map((item) => (
+              {(user.listings || []).map((item) => (
                 <div
                   key={item.id}
                   onClick={() => navigate(`/listing/${item.id}`)}
@@ -120,7 +121,7 @@ const PublicProfile = () => {
                 >
                   <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
                     <img
-                      src={item.images[0]}
+                      src={Array.isArray(item.images) ? item.images[0]?.url || item.images[0] : item.image || ''}
                       alt={item.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />
@@ -128,10 +129,16 @@ const PublicProfile = () => {
                   <div className="flex-1">
                     <p className="text-[11px] font-black text-[#ff6b1a] uppercase tracking-wider">{item.category}</p>
                     <h3 className="font-bold text-[14px] text-[#1b1c1c] leading-snug mb-1">{item.title}</h3>
-                    <p className="text-[16px] font-black text-[#ff6b1a]">{formatFCFA(item.priceFCFA)}</p>
+                    <p className="text-[16px] font-black text-[#ff6b1a]">{formatFCFA(item.price_fcfa || item.priceFCFA || 0)}</p>
                   </div>
                 </div>
               ))}
+              {(user.listings || []).length === 0 && (
+                <div className="text-center py-12 text-gray-400 col-span-2">
+                  <span className="material-symbols-outlined text-[48px] mb-3 block">store</span>
+                  <p className="font-semibold">No active listings</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -143,17 +150,17 @@ const PublicProfile = () => {
                     <div key={i} className="bg-[#fcf9f8] rounded-2xl p-5">
                       <div className="flex items-center gap-3 mb-2">
                         <div className="w-9 h-9 rounded-xl bg-[#ff6b1a] text-white flex items-center justify-center font-black text-[11px]">
-                          {r.reviewer.split(' ').map((n) => n[0]).join('')}
+                          {r.reviewer_first?.[0]}{r.reviewer_last?.[0]}
                         </div>
                         <div>
-                          <p className="font-bold text-[14px] text-[#1b1c1c]">{r.reviewer}</p>
+                          <p className="font-bold text-[14px] text-[#1b1c1c]">{r.reviewer_first} {r.reviewer_last}</p>
                           <div className="flex gap-0.5">
                             {[...Array(5)].map((_, j) => (
                               <span key={j} className="material-symbols-outlined text-yellow-400 text-[14px]" style={{ fontVariationSettings: j < r.rating ? "'FILL' 1" : "'FILL' 0" }}>star</span>
                             ))}
                           </div>
                         </div>
-                        <span className="ml-auto text-[12px] text-gray-400">{r.date}</span>
+                        <span className="ml-auto text-[12px] text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
                       </div>
                       <p className="text-[14px] text-gray-600">{r.comment}</p>
                     </div>

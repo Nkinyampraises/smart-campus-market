@@ -10,7 +10,7 @@ const AdminListings = () => {
   const [search, setSearch]     = useState('');
 
   useEffect(() => {
-    api.adminListings().then(setListings).catch(console.error).finally(() => setLoading(false));
+    api.adminListings().then(setListings).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const filtered = listings.filter((l) => l.title?.toLowerCase().includes(search.toLowerCase()));

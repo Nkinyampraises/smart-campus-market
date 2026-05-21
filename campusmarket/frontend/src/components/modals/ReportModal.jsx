@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useToast } from '../../context/ToastContext';
+import { api } from '../../services/api';
 
 const reasons = [
   'Fake item / Scam',
@@ -15,17 +16,21 @@ const ReportModal = ({ listing, onClose }) => {
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!reason) {
       showToast('Please select a reason', 'error');
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await api.fileReport({ listing_id: listing?.id, reason, description });
       showToast('Report submitted. We will review it shortly.', 'success');
       onClose();
-    }, 700);
+    } catch (err) {
+      showToast(err.message || 'Failed to submit report', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

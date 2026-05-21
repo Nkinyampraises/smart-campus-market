@@ -1,0 +1,135 @@
+pipeline {
+  agent any
+
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '30'))
+    timeout(time: 60, unit: 'MINUTES')
+  }
+
+  environment {
+    REGISTRY = 'campustrade'
+    SERVICES = 'auth-service,user-service,listing-service,chat-service,admin-service,ai-service,search-service,notification-service,api-gateway'
+    IMAGE_TAG = "${env.BUILD_NUMBER}"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Install Dependencies') {
+      steps {
+        script {
+          SERVICES.split(',').each { svc ->
+            dir("backend/services/${svc}") {
+              sh 'npm ci'
+            }
+          }
+        }
+      }
+    }
+
+    stage('Release Gate: Static Validation') {
+      steps {
+        sh 'find backend/services -name "server.js" -print0 | xargs -0 -I{} node --check {}'
+      }
+    }
+
+    stage('Release Gate: Security Scan') {
+      steps {
+        script {
+          SERVICES.split(',').each { svc ->
+            dir("backend/services/${svc}") {
+              sh 'npm audit --omit=dev --audit-level=high'
+            }
+          }
+        }
+      }
+    }
+
+    stage('Release Gate: Unit Tests') {
+      steps {
+        script {
+          SERVICES.split(',').each { svc ->
+            dir("backend/services/${svc}") {
+              sh 'npm test -- --passWithNoTests'
+            }
+          }
+        }
+      }
+    }
+
+    stage('Build Docker Images') {
+      when { branch 'main' }
+      steps {
+        script {
+          SERVICES.split(',').each { svc ->
+            sh "docker build --build-arg SERVICE_NAME=${svc} -t ${REGISTRY}/${svc}:${IMAGE_TAG} -f backend/Dockerfile backend"
+          }
+        }
+      }
+    }
+
+    stage('Release Gate: Container Scan') {
+      when { branch 'main' }
+      steps {
+        script {
+          SERVICES.split(',').each { svc ->
+            sh """
+              if command -v trivy >/dev/null 2>&1; then
+                trivy image --exit-code 1 --severity HIGH,CRITICAL ${REGISTRY}/${svc}:${IMAGE_TAG}
+              else
+                echo "trivy not found; failing release gate"
+                exit 1
+              fi
+            """
+          }
+        }
+      }
+    }
+
+    stage('Release Gate: Smoke Test') {
+      when { branch 'main' }
+      steps {
+        sh 'chmod +x backend/scripts/smoke-test.sh'
+        sh 'backend/scripts/smoke-test.sh'
+      }
+      post {
+        always {
+          sh 'docker compose -f backend/docker-compose.prod.yml down -v || true'
+        }
+      }
+    }
+
+    stage('Push Images') {
+      when { branch 'main' }
+      steps {
+        script {
+          SERVICES.split(',').each { svc ->
+            sh "docker push ${REGISTRY}/${svc}:${IMAGE_TAG}"
+          }
+        }
+      }
+    }
+
+    stage('Deploy to Staging') {
+      when { branch 'main' }
+      steps {
+        sh 'kubectl apply -f backend/k8s/ --namespace=campustrade'
+        sh "kubectl set image deployment/api-gateway api-gateway=${REGISTRY}/api-gateway:${IMAGE_TAG} --namespace=campustrade"
+        sh 'kubectl rollout status deployment/api-gateway --namespace=campustrade --timeout=180s'
+      }
+    }
+  }
+
+  post {
+    always {
+      archiveArtifacts artifacts: 'backend/PRODUCTION.md,backend/docker-compose.prod.yml', fingerprint: true
+      cleanWs()
+    }
+  }
+}

@@ -14,15 +14,28 @@ const Search = () => {
   useEffect(() => {
     if (!query) return;
     setLoading(true);
-    api.search({ q: query }).then((data) => setResults(data.results || data)).catch(console.error).finally(() => setLoading(false));
+    api.search({ q: query }).then((data) => setResults(data.results || data)).catch(() => {}).finally(() => setLoading(false));
   }, [query]);
 
-  const getWishlist = () => { try { return JSON.parse(localStorage.getItem('campustrade_wishlist') || '[]'); } catch { return []; } };
-  const isWishlisted = (id) => getWishlist().some((w) => String(w.id) === String(id));
-  const toggleWishlist = (listing) => {
-    const cur = getWishlist();
-    const exists = cur.some((w) => String(w.id) === String(listing.id));
-    localStorage.setItem('campustrade_wishlist', JSON.stringify(exists ? cur.filter((w) => String(w.id) !== String(listing.id)) : [...cur, listing]));
+  const [wishlistIds, setWishlistIds] = useState(new Set());
+
+  useEffect(() => {
+    api.getWishlist().then((w) => setWishlistIds(new Set(w.map((item) => String(item.id))))).catch(() => {});
+  }, []);
+
+  const isWishlisted = (id) => wishlistIds.has(String(id));
+
+  const toggleWishlist = async (listing) => {
+    const id = String(listing.id);
+    try {
+      if (wishlistIds.has(id)) {
+        await api.removeWishlist(listing.id);
+        setWishlistIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      } else {
+        await api.addWishlist(listing.id);
+        setWishlistIds((prev) => new Set(prev).add(id));
+      }
+    } catch {}
   };
 
   return (
