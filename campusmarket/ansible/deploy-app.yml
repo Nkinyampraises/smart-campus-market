@@ -1,0 +1,105 @@
+---
+- name: Deploy CampusTrade Application
+  hosts: campustrade_servers
+  become: yes
+  vars:
+    app_dir: /opt/campustrade
+    repo_url: https://github.com/Nkinyampraises/smart-campus-market.git
+    branch: main
+
+  tasks:
+
+    # ── Code Checkout ─────────────────────────────────────────────────────────
+
+    - name: Ensure app directory exists
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+
+    - name: Clone / update repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: "{{ branch }}"
+        force: yes
+      become_user: "{{ ansible_user }}"
+
+    # ── Environment ───────────────────────────────────────────────────────────
+
+    - name: Copy backend .env file
+      copy:
+        src: .env.production
+        dest: "{{ app_dir }}/campusmarket/backend/.env"
+        mode: '0600'
+        owner: "{{ ansible_user }}"
+
+    # ── Database ──────────────────────────────────────────────────────────────
+
+    - name: Wait for PostgreSQL to be ready
+      wait_for:
+        host: localhost
+        port: 5432
+        delay: 5
+        timeout: 60
+
+    - name: Run database schema migrations
+      shell: |
+        docker exec campustrade-postgres-1 psql -U campustrade -d campustrade \
+          -f /docker-entrypoint-initdb.d/init.sql
+      ignore_errors: yes
+
+    # ── Docker ────────────────────────────────────────────────────────────────
+
+    - name: Pull latest Docker images
+      shell: |
+        cd {{ app_dir }}/campusmarket/backend
+        docker compose pull
+      become_user: "{{ ansible_user }}"
+
+    - name: Build and start all services
+      shell: |
+        cd {{ app_dir }}/campusmarket/backend
+        docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+      become_user: "{{ ansible_user }}"
+
+    - name: Wait for services to be healthy
+      shell: |
+        docker compose -p campustrade ps --filter "status=running" | wc -l
+      register: running_count
+      until: running_count.stdout | int >= 9
+      retries: 12
+      delay: 10
+      become_user: "{{ ansible_user }}"
+      ignore_errors: yes
+
+    # ── Monitoring ────────────────────────────────────────────────────────────
+
+    - name: Start Prometheus and Grafana
+      shell: |
+        cd {{ app_dir }}/campusmarket
+        docker compose -f docker/docker-compose.yml up -d
+      become_user: "{{ ansible_user }}"
+      ignore_errors: yes
+
+    # ── Health Check ──────────────────────────────────────────────────────────
+
+    - name: Run smoke tests
+      shell: bash {{ app_dir }}/campusmarket/backend/scripts/smoke-test.sh
+      register: smoke_result
+      ignore_errors: yes
+
+    - name: Show smoke test results
+      debug:
+        msg: "{{ smoke_result.stdout }}"
+
+    - name: Reload Nginx
+      systemd:
+        name: nginx
+        state: reloaded
+
+    - name: Deployment complete
+      debug:
+        msg: "CampusTrade deployed successfully to {{ inventory_hostname }}"

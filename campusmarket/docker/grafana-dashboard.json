@@ -1,0 +1,223 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": { "list": [] },
+  "description": "CampusTrade Microservices Monitoring Dashboard",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Service Health Overview",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 1 },
+      "id": 2,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "API Gateway",
+      "type": "stat",
+      "targets": [{ "expr": "up{job='api-gateway'}", "legendFormat": "Status" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 1 },
+      "id": 3,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Auth Service",
+      "type": "stat",
+      "targets": [{ "expr": "up{job='auth-service'}", "legendFormat": "Status" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 1 },
+      "id": 4,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Listing Service",
+      "type": "stat",
+      "targets": [{ "expr": "up{job='listing-service'}", "legendFormat": "Status" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 9, "y": 1 },
+      "id": 5,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Chat Service",
+      "type": "stat",
+      "targets": [{ "expr": "up{job='chat-service'}", "legendFormat": "Status" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
+      "id": 6,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Notification Service",
+      "type": "stat",
+      "targets": [{ "expr": "up{job='notification-service'}", "legendFormat": "Status" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
+      "id": 7,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "AI Service",
+      "type": "stat",
+      "targets": [{ "expr": "up{job='ai-service'}", "legendFormat": "Status" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 },
+      "id": 8,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Search Service",
+      "type": "stat",
+      "targets": [{ "expr": "up{job='search-service'}", "legendFormat": "Status" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 },
+      "id": 9,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Admin Service",
+      "type": "stat",
+      "targets": [{ "expr": "up{job='admin-service'}", "legendFormat": "Status" }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 10,
+      "title": "HTTP Request Rate",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 11,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Requests Per Second (All Services)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(http_requests_total{job='api-gateway'}[5m])", "legendFormat": "API Gateway" },
+        { "expr": "rate(http_requests_total{job='auth-service'}[5m])", "legendFormat": "Auth" },
+        { "expr": "rate(http_requests_total{job='listing-service'}[5m])", "legendFormat": "Listing" },
+        { "expr": "rate(http_requests_total{job='chat-service'}[5m])", "legendFormat": "Chat" },
+        { "expr": "rate(http_requests_total{job='search-service'}[5m])", "legendFormat": "Search" }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 12,
+      "title": "Response Time p95 (All Services)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job='api-gateway'}[5m]))", "legendFormat": "API Gateway p95" },
+        { "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job='auth-service'}[5m]))", "legendFormat": "Auth p95" },
+        { "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job='listing-service'}[5m]))", "legendFormat": "Listing p95" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 13,
+      "title": "System Resources",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100 } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "id": 14,
+      "title": "CPU Usage Per Service",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(process_cpu_seconds_total{job='api-gateway'}[5m]) * 100", "legendFormat": "API Gateway" },
+        { "expr": "rate(process_cpu_seconds_total{job='auth-service'}[5m]) * 100", "legendFormat": "Auth" },
+        { "expr": "rate(process_cpu_seconds_total{job='listing-service'}[5m]) * 100", "legendFormat": "Listing" },
+        { "expr": "rate(process_cpu_seconds_total{job='chat-service'}[5m]) * 100", "legendFormat": "Chat" }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "id": 15,
+      "title": "Memory Usage Per Service",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "process_resident_memory_bytes{job='api-gateway'}", "legendFormat": "API Gateway" },
+        { "expr": "process_resident_memory_bytes{job='auth-service'}", "legendFormat": "Auth" },
+        { "expr": "process_resident_memory_bytes{job='listing-service'}", "legendFormat": "Listing" },
+        { "expr": "process_resident_memory_bytes{job='chat-service'}", "legendFormat": "Chat" },
+        { "expr": "process_resident_memory_bytes{job='notification-service'}", "legendFormat": "Notification" }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "tags": ["campustrade", "microservices"],
+  "title": "CampusTrade Microservices Dashboard",
+  "uid": "campustrade-main",
+  "version": 1
+}
