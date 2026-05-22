@@ -1,6 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
-const getToken = () => localStorage.getItem('campustrade_token');
+export const getToken = () => localStorage.getItem('campustrade_token');
 
 const request = async (method, path, body = null) => {
   const headers = { 'Content-Type': 'application/json' };
