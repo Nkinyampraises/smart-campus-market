@@ -19,44 +19,55 @@ const ListingDetail = () => {
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBuyModal, setShowBuyModal]       = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [similar, setSimilar] = useState([]);
 
   useEffect(() => {
     api.getListing(id)
       .then((data) => {
-        // Normalise API field names to match component expectations
         setListing({
           ...data,
           priceFCFA:  data.price_fcfa,
           location:   data.campus_zone,
           meetingAt:  data.campus_zone,
-          images:     data.images || [],
+          images:     data.images || data.image_urls || [],
           tags:       data.tags   || [],
-          seller:     { name: data.seller_name || 'Seller', initials: 'S', color: '#ff6b1a', rating: 0, reviews: 0, id: data.seller_id },
+          seller:     {
+            name: `${data.seller_first || ''} ${data.seller_last || ''}`.trim() || 'Seller',
+            initials: (data.seller_first?.[0] || 'S') + (data.seller_last?.[0] || ''),
+            color: '#ff6b1a',
+            rating: data.seller_rating || 0,
+            reviews: data.seller_reviews || 0,
+            id: data.seller_id,
+            avatar: data.seller_avatar,
+          },
         });
+        // Check wishlist status
+        api.getWishlist().then((w) => setSaved(w.some((item) => String(item.id) === String(id)))).catch(() => {});
+        // Fetch similar listings
+        api.search({ category: data.category, limit: 4 }).then((r) => {
+          const items = r.results || r;
+          setSimilar(items.filter((item) => String(item.id) !== String(id)).slice(0, 4));
+        }).catch(() => {});
       })
       .catch(() => showToast('Listing not found', 'error'))
       .finally(() => setLoading(false));
   }, [id]);
 
-  const getWishlist = () => {
-    try { return JSON.parse(localStorage.getItem('campustrade_wishlist') || '[]'); } catch { return []; }
-  };
-  const isInWishlist = getWishlist().some((w) => String(w.id) === String(id));
-  const [saved, setSaved] = useState(isInWishlist);
-
-  const toggleWishlist = () => {
-    const current = getWishlist();
-    if (saved) {
-      localStorage.setItem('campustrade_wishlist', JSON.stringify(current.filter((w) => String(w.id) !== String(id))));
-      setSaved(false);
-      showToast('Removed from wishlist', 'neutral');
-    } else {
-      localStorage.setItem('campustrade_wishlist', JSON.stringify([
-        ...current,
-        { id: listing.id, listingId: listing.id, title: listing.title, priceFCFA: listing.priceFCFA, image: listing.images?.[0], category: listing.category, location: listing.location },
-      ]));
-      setSaved(true);
-      showToast('Added to wishlist!', 'success');
+  const toggleWishlist = async () => {
+    if (!listing) return;
+    try {
+      if (saved) {
+        await api.removeWishlist(id);
+        setSaved(false);
+        showToast('Removed from wishlist', 'neutral');
+      } else {
+        await api.addWishlist(id);
+        setSaved(true);
+        showToast('Added to wishlist!', 'success');
+      }
+    } catch (err) {
+      showToast(err.message || 'Wishlist update failed', 'error');
     }
   };
 
@@ -258,14 +269,20 @@ const ListingDetail = () => {
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[].map((item) => (
+            {similar.length === 0 && (
+              <div className="col-span-full text-center py-10 text-gray-400">
+                <p className="text-[14px]">No similar listings found</p>
+                <button onClick={() => navigate('/browse')} className="mt-3 px-5 py-2 bg-[#ff6b1a] text-white rounded-full font-bold text-[13px]">Browse All</button>
+              </div>
+            )}
+            {similar.map((item) => (
               <div
                 key={item.id}
                 onClick={() => navigate(`/listing/${item.id}`)}
                 className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group"
               >
                 <div className="relative overflow-hidden" style={{ height: '160px' }}>
-                  <img src={item.images?.[0] || item.image} alt={item.title}
+                  <img src={(item.images?.[0]) || (item.image_urls?.[0]) || item.image} alt={item.title}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                 </div>
                 <div className="p-4">

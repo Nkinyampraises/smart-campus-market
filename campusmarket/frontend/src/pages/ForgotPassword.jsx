@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import { api } from '../services/api';
 
 const ForgotPassword = () => {
   const { showToast } = useToast();
@@ -9,18 +10,22 @@ const ForgotPassword = () => {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email.includes('@')) {
       showToast('Enter a valid email address', 'error');
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await api.forgotPassword(email);
       setSent(true);
       showToast('Reset link sent! Check your email.', 'success');
-    }, 900);
+    } catch (err) {
+      showToast(err.message || 'Failed to send reset link', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

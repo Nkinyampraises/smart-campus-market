@@ -4,129 +4,14 @@ import Topbar from '../components/Topbar';
 import { formatFCFA } from '../utils/format';
 import { api } from '../services/api';
 
-const hardcodedListings = [
-  {
-    id: 1,
-    title: 'Homemade Fried Chicken Wings',
-    category: 'Food',
-    subcategory: 'Main Course',
-    priceFCFA: 3500,
-    price: 3500,
-    status: 'Active',
-    views: 142,
-    saves: 12,
-    inquiries: 3,
-    image: 'https://images.unsplash.com/photo-1626082927389-6cd097cda1ec?w=400&h=300&fit=crop',
-    description: 'Crispy golden fried chicken wings. Made fresh daily. Perfect for lunch on campus.',
-  },
-  {
-    id: 2,
-    title: 'Fresh Fruit Salad - Mixed Berries',
-    category: 'Food',
-    subcategory: 'Fruit',
-    priceFCFA: 2500,
-    price: 2500,
-    status: 'Active',
-    views: 87,
-    saves: 18,
-    inquiries: 2,
-    image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop',
-    description: 'Fresh mixed berries fruit salad. Healthy and delicious. Available daily.',
-  },
-  {
-    id: 3,
-    title: 'Greek Yogurt with Honey',
-    category: 'Food',
-    subcategory: 'Dairy',
-    priceFCFA: 2200,
-    price: 2200,
-    status: 'Active',
-    views: 156,
-    saves: 28,
-    inquiries: 5,
-    image: 'https://images.unsplash.com/photo-1488477181946-85a4c60d4fe6?w=400&h=300&fit=crop',
-    description: 'Creamy Greek yogurt with organic honey. Rich protein content. Great for breakfast.',
-  },
-  {
-    id: 4,
-    title: 'Fresh Orange Juice - 1L',
-    category: 'Beverages',
-    subcategory: 'Juice',
-    priceFCFA: 1500,
-    price: 1500,
-    status: 'Reserved',
-    views: 203,
-    saves: 45,
-    inquiries: 8,
-    image: 'https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=400&h=300&fit=crop',
-    description: 'Fresh squeezed orange juice. No additives. Reserved until Friday.',
-  },
-  {
-    id: 5,
-    title: 'Beaded Bracelets Set',
-    category: 'Accessories',
-    subcategory: 'Jewelry',
-    priceFCFA: 5000,
-    price: 5000,
-    status: 'Active',
-    views: 92,
-    saves: 34,
-    inquiries: 0,
-    image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=400&h=300&fit=crop',
-    description: 'Handmade beaded bracelets. Colorful designs. Perfect for summer campus looks.',
-  },
-  {
-    id: 6,
-    title: 'Organic Strawberry Pastry',
-    category: 'Food',
-    subcategory: 'Bakery',
-    priceFCFA: 3800,
-    price: 3800,
-    status: 'Active',
-    views: 65,
-    saves: 22,
-    inquiries: 1,
-    image: 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=400&h=300&fit=crop',
-    description: 'Fresh strawberry pastry. Baked daily. Best enjoyed fresh. Great for dessert.',
-  },
-  {
-    id: 7,
-    title: 'Lipgloss Collection - 5 Colors',
-    category: 'Accessories',
-    subcategory: 'Beauty',
-    priceFCFA: 7500,
-    price: 7500,
-    status: 'Active',
-    views: 234,
-    saves: 56,
-    inquiries: 7,
-    image: 'https://images.unsplash.com/photo-1631857786934-5e81c228d1b7?w=400&h=300&fit=crop',
-    description: 'Premium lipgloss collection. 5 trendy colors. Long-lasting formula.',
-  },
-  {
-    id: 8,
-    title: 'USB-C Phone Charger - Fast',
-    category: 'Electronics',
-    subcategory: 'Charging',
-    priceFCFA: 9500,
-    price: 9500,
-    status: 'Active',
-    views: 178,
-    saves: 42,
-    inquiries: 3,
-    image: 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=300&fit=crop',
-    description: 'Fast USB-C charger. Compatible with most devices. Gently used. Perfect condition.',
-  },
-];
-
 const TAB_FILTERS = ['active', 'reserved', 'sold', 'expired'];
 
 const getStatusColor = (status) => {
-  switch (status) {
-    case 'Active': return 'bg-green-100 text-green-700';
-    case 'Reserved': return 'bg-blue-100 text-blue-700';
-    case 'Sold': return 'bg-gray-100 text-gray-600';
-    case 'Expired': return 'bg-yellow-100 text-yellow-700';
+  switch ((status || '').toLowerCase()) {
+    case 'active': return 'bg-green-100 text-green-700';
+    case 'reserved': return 'bg-blue-100 text-blue-700';
+    case 'sold': return 'bg-gray-100 text-gray-600';
+    case 'expired': return 'bg-yellow-100 text-yellow-700';
     default: return 'bg-gray-100 text-gray-600';
   }
 };
@@ -135,13 +20,26 @@ const MyListings = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('active');
   const [listings, setListings]   = useState([]);
+  const [totalSales, setTotalSales] = useState(0);
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
     api.getMyListings()
-      .then((data) => setListings(data.map((l) => ({ ...l, priceFCFA: l.price_fcfa, location: l.campus_zone, image: l.images?.[0] }))))
-      .catch(console.error)
+      .then((data) => setListings(data.map((l) => ({
+        ...l,
+        status: (l.status || 'active').toLowerCase(),
+        priceFCFA: l.price_fcfa,
+        location: l.campus_zone,
+        image: l.images?.[0],
+      }))))
+      .catch(() => {})
       .finally(() => setLoading(false));
+
+    api.getTransactions().then((data) => {
+      const sold = data?.sold || [];
+      const total = sold.reduce((sum, t) => sum + Number(t.final_price || 0), 0);
+      setTotalSales(total);
+    }).catch(() => {});
   }, []);
 
   const filtered = listings.filter((l) => (l.status || 'active') === activeTab);
@@ -169,7 +67,7 @@ const MyListings = () => {
               <span className="material-symbols-outlined text-[#ff6b1a]">trending_up</span>
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Sales</p>
-                <p className="text-[16px] font-bold">1,240,000 FCFA</p>
+                <p className="text-[16px] font-bold">{formatFCFA(totalSales)}</p>
               </div>
             </div>
             <button
@@ -221,7 +119,7 @@ const MyListings = () => {
                   />
                   <div className="absolute top-3 left-3">
                     <span className={`${getStatusColor(listing.status || 'Active')} px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm`}>
-                      {listing.status || 'Active'}
+                      {listing.status || 'active'}
                     </span>
                   </div>
                 </div>
@@ -265,7 +163,7 @@ const MyListings = () => {
                       >
                         <span className="material-symbols-outlined text-[20px]">edit</span>
                       </button>
-                      {listing.status === 'Reserved' ? (
+                      {listing.status === 'reserved' ? (
                         <button
                           onClick={() => navigate(`/edit-listing/${listing.id}`)}
                           className="bg-[#ff6b1a] text-white px-6 py-2 rounded-lg font-bold text-sm hover:shadow-lg transition-all active:scale-95"

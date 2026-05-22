@@ -1,17 +1,30 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { adminStats } from '../data/mockData';
+import { api } from '../services/api';
 
-const navItems = [
+const baseNavItems = [
   { icon: 'dashboard', label: 'Dashboard', path: '/admin/dashboard' },
   { icon: 'group', label: 'Users', path: '/admin/users' },
   { icon: 'store', label: 'Listings', path: '/admin/listings' },
-  { icon: 'flag', label: 'Reports', path: '/admin/reports', badge: adminStats.pendingReports },
-  { icon: 'gpp_bad', label: 'Fraud Alerts', path: '/admin/fraud', badge: adminStats.fraudFlags },
+  { icon: 'flag', label: 'Reports', path: '/admin/reports' },
+  { icon: 'gpp_bad', label: 'Fraud Alerts', path: '/admin/fraud' },
 ];
 
 const AdminSidebar = () => {
   const location = useLocation();
+  const [stats, setStats] = useState({ pendingReports: 0, fraudFlags: 0 });
+
+  useEffect(() => {
+    api.adminStats().then((s) => {
+      if (s) setStats({ pendingReports: s.pendingReports || 0, fraudFlags: s.fraudFlags || 0 });
+    }).catch(() => {});
+  }, []);
+
+  const navItems = baseNavItems.map((item) => {
+    if (item.label === 'Reports') return { ...item, badge: stats.pendingReports };
+    if (item.label === 'Fraud Alerts') return { ...item, badge: stats.fraudFlags };
+    return item;
+  });
 
   return (
     <aside className="hidden md:flex flex-col w-64 border-r border-gray-100 bg-white p-4 gap-2 sticky top-[61px] h-[calc(100vh-61px)] overflow-y-auto flex-shrink-0">

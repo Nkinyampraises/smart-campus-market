@@ -16,6 +16,8 @@ const Browse = () => {
   const [minPrice, setMinPrice]   = useState('');
   const [maxPrice, setMaxPrice]   = useState('');
 
+  const [wishlistIds, setWishlistIds] = useState(new Set());
+
   const fetchListings = () => {
     setLoading(true);
     const params = {};
@@ -23,17 +25,28 @@ const Browse = () => {
     if (condition !== 'All') params.condition = condition;
     if (minPrice) params.min_price = minPrice;
     if (maxPrice) params.max_price = maxPrice;
-    api.getListings(params).then(setListings).catch(console.error).finally(() => setLoading(false));
+    api.getListings(params).then(setListings).catch(() => {}).finally(() => setLoading(false));
+  };
+
+  const fetchWishlist = () => {
+    api.getWishlist().then((items) => {
+      setWishlistIds(new Set(items.map((i) => String(i.id))));
+    }).catch(() => {});
   };
 
   useEffect(() => { fetchListings(); }, [category, condition]);
+  useEffect(() => { fetchWishlist(); }, []);
 
-  const getWishlist = () => { try { return JSON.parse(localStorage.getItem('campustrade_wishlist') || '[]'); } catch { return []; } };
-  const isWishlisted = (id) => getWishlist().some((w) => String(w.id) === String(id));
-  const toggleWishlist = (listing) => {
-    const cur = getWishlist();
-    const exists = cur.some((w) => String(w.id) === String(listing.id));
-    localStorage.setItem('campustrade_wishlist', JSON.stringify(exists ? cur.filter((w) => String(w.id) !== String(listing.id)) : [...cur, listing]));
+  const isWishlisted = (id) => wishlistIds.has(String(id));
+  const toggleWishlist = async (listing) => {
+    const id = String(listing.id);
+    if (isWishlisted(id)) {
+      await api.removeWishlist(id).catch(() => {});
+      setWishlistIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    } else {
+      await api.addWishlist(id).catch(() => {});
+      setWishlistIds((prev) => new Set(prev).add(id));
+    }
   };
 
   return (

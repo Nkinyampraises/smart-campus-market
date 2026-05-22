@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 // Providers
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { SocketProvider } from './context/SocketContext';
 
 // Guards
 import ProtectedRoute from './components/ProtectedRoute';
@@ -64,7 +65,8 @@ function App() {
     <Router>
       <AuthProvider>
         <ToastProvider>
-          <Routes>
+          <SocketProvider>
+            <Routes>
             {/* Root → Home */}
             <Route path="/" element={<Navigate to="/home" replace />} />
 
@@ -122,6 +124,7 @@ function App() {
             {/* Catch-all → Not Found */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </SocketProvider>
         </ToastProvider>
       </AuthProvider>
     </Router>

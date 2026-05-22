@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { api } from '../services/api';
 
 const SignUp = () => {
   const navigate = useNavigate();
+  const { register } = useAuth();
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -13,6 +18,15 @@ const SignUp = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [stats, setStats] = useState({ active_listings: '—', verified_users: '—', satisfaction: '—' });
+
+  useEffect(() => {
+    api.adminPublicStats().then((s) => setStats({
+      active_listings: s.activeListings?.toLocaleString() || '—',
+      verified_users: s.verifiedUsers?.toLocaleString() || '—',
+      satisfaction: s.transactions?.toLocaleString() || '—',
+    })).catch(() => {});
+  }, []);
 
   const campusZones = [
     { value: 'north', label: 'North Campus' },
@@ -41,24 +55,22 @@ const SignUp = () => {
 
     setLoading(true);
     try {
-      console.log('SignUp attempt:', formData);
-      // TODO: Connect to backend auth service
-      // navigate('/dashboard');
-    } catch (error) {
-      console.error('SignUp error:', error);
-      setError(error.message || 'An error occurred during signup');
+      const result = await register(formData);
+      if (result.success) {
+        showToast('Account created! Please check your email to verify.', 'success');
+        navigate('/verify-email');
+      } else {
+        setError(result.error || 'Registration failed');
+      }
+    } catch (err) {
+      setError(err.message || 'An error occurred during signup');
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleSignUp = async () => {
-    try {
-      // TODO: Add Google OAuth logic here
-      console.log('Google signup clicked');
-    } catch (error) {
-      console.error('Google signup error:', error);
-    }
+    showToast('Google sign-up coming soon', 'neutral');
   };
 
   const handleLogin = () => {
@@ -284,9 +296,9 @@ const SignUp = () => {
             >
               <span className="material-symbols-outlined text-[#ff6b1a] text-5xl">group</span>
               <div>
-                <p className="font-[Epilogue] text-[32px] font-bold text-[#1b1c1c]">2.4k</p>
+                <p className="font-[Epilogue] text-[32px] font-bold text-[#1b1c1c]">{stats.verified_users}</p>
                 <p className="font-[Manrope] text-[12px] font-bold tracking-wider text-[#5c5f60] uppercase">
-                  Active Users
+                  Verified Users
                 </p>
               </div>
             </div>
@@ -301,7 +313,7 @@ const SignUp = () => {
             >
               <span className="material-symbols-outlined text-[#ff6b1a] text-5xl">inventory_2</span>
               <div>
-                <p className="font-[Epilogue] text-[32px] font-bold text-[#1b1c1c]">840</p>
+                <p className="font-[Epilogue] text-[32px] font-bold text-[#1b1c1c]">{stats.active_listings}</p>
                 <p className="font-[Manrope] text-[12px] font-bold tracking-wider text-[#5c5f60] uppercase">
                   Live Listings
                 </p>
@@ -317,7 +329,7 @@ const SignUp = () => {
               }}
             >
               <div>
-                <p className="font-[Epilogue] text-[32px] font-bold text-[#1b1c1c]">98%</p>
+                <p className="font-[Epilogue] text-[32px] font-bold text-[#1b1c1c]">{stats.satisfaction}</p>
                 <p className="font-[Manrope] text-[12px] font-bold tracking-wider text-[#5c5f60] uppercase">
                   Satisfaction Rate
                 </p>

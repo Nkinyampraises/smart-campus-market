@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Topbar from '../components/Topbar';
 import { useToast } from '../context/ToastContext';
+import { api } from '../services/api';
 
 const CATEGORIES = ['Textbooks', 'Electronics', 'Housing', 'Clothing', 'Services', 'Accessories'];
 const CONDITIONS = ['New / Unopened', 'Excellent Condition', 'Good Condition', 'Used', 'For Parts'];
@@ -82,38 +83,29 @@ const CreateListing = () => {
     navigate('/my-listings');
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!validate()) return;
     setLoading(true);
-    setTimeout(() => {
-      const stored = JSON.parse(localStorage.getItem('campustrade_listings') || '[]');
+    try {
       const zone = CAMPUS_ZONES.find((z) => z.id === form.campusZone);
-      const newItem = {
-        id: Date.now(),
+      const payload = {
         title: form.title,
-        category: form.category,
-        subcategory: form.category,
-        priceFCFA: Number(form.price),
-        price: Number(form.price),
-        condition: form.condition,
         description: form.description,
-        campusZone: form.campusZone,
-        status: 'Active',
-        views: 0,
-        saves: 0,
-        inquiries: 0,
-        postedAgo: 'Just now',
-        image: previews[0] || DEFAULT_IMAGES[form.category],
+        category: form.category,
+        price_fcfa: Number(form.price),
+        condition: form.condition,
+        campus_zone: zone?.label || form.campusZone,
+        tags: [form.category],
         images: previews.length ? previews : [DEFAULT_IMAGES[form.category]],
-        location: zone?.label || 'Campus',
-        seller: { name: 'You', initials: 'ME', color: '#ff6b1a', rating: 5.0, reviews: 0 },
-        createdAt: Date.now(),
       };
-      localStorage.setItem('campustrade_listings', JSON.stringify([newItem, ...stored]));
-      setLoading(false);
+      const res = await api.createListing(payload);
       showToast('Listing published successfully!', 'success');
-      navigate('/my-listings');
-    }, 1000);
+      navigate(`/listing/${res.listingId}`);
+    } catch (err) {
+      showToast(err.message || 'Failed to publish listing', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const steps = [

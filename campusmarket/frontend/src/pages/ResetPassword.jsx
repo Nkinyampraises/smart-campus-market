@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import { api } from '../services/api';
 
 const getStrength = (pwd) => {
   let score = 0;
@@ -17,14 +18,20 @@ const strengthLabel = ['', 'Weak', 'Fair', 'Good', 'Strong'];
 const ResetPassword = () => {
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState({ password: '', confirm: '' });
   const [loading, setLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
 
   const strength = getStrength(form.password);
+  const token = searchParams.get('token');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!token) {
+      showToast('Invalid or expired reset link', 'error');
+      return;
+    }
     if (form.password.length < 8) {
       showToast('Password must be at least 8 characters', 'error');
       return;
@@ -34,11 +41,15 @@ const ResetPassword = () => {
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await api.resetPassword(token, form.password);
       showToast('Password updated successfully!', 'success');
       setTimeout(() => navigate('/login'), 1000);
-    }, 900);
+    } catch (err) {
+      showToast(err.message || 'Failed to reset password', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

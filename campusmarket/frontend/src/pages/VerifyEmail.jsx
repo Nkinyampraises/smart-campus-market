@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import { api } from '../services/api';
 
 const INITIAL_SECONDS = 24 * 60 * 60; // 24 hours
 
@@ -23,13 +24,18 @@ const VerifyEmail = () => {
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
 
-  const handleResend = () => {
+  const handleResend = async () => {
     setResendLoading(true);
-    setTimeout(() => {
-      setResendLoading(false);
+    try {
+      const email = localStorage.getItem('pending_verification_email') || '';
+      await api.resendVerification(email);
       setSeconds(INITIAL_SECONDS);
       showToast('Verification email resent!', 'success');
-    }, 1000);
+    } catch (err) {
+      showToast(err.message || 'Failed to resend email', 'error');
+    } finally {
+      setResendLoading(false);
+    }
   };
 
   return (

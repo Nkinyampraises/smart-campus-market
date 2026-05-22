@@ -1,0 +1,48 @@
+pipeline {
+  agent any
+
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '30'))
+    timeout(time: 75, unit: 'MINUTES')
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Frontend Gate: Install + Build') {
+      steps {
+        dir('frontend') {
+          sh 'npm ci'
+          sh 'npm run build'
+        }
+      }
+    }
+
+    stage('Backend Release Gate') {
+      steps {
+        sh 'echo "Backend release gate is defined in backend/Jenkinsfile and should run as dedicated backend pipeline."'
+      }
+    }
+
+    stage('Policy Gate: Release Checklist Present') {
+      steps {
+        sh 'test -f backend/RELEASE_GATE_CHECKLIST.md'
+        sh 'test -f backend/docker-compose.prod.yml'
+        sh 'test -f backend/PRODUCTION.md'
+      }
+    }
+  }
+
+  post {
+    always {
+      archiveArtifacts artifacts: 'frontend/dist/**,backend/RELEASE_GATE_CHECKLIST.md,backend/PRODUCTION.md', fingerprint: true
+      cleanWs()
+    }
+  }
+}

@@ -36,7 +36,7 @@ const BuyNowModal = ({ listing, onClose }) => {
     setLoading(true);
 
     api.buyNow(listing.id, { campus_zone: zone, landmark, note })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => {
         setLoading(false);
         setSubmitted(true);
