@@ -6,10 +6,11 @@ const REFRESH_KEY = 'campustrade_refresh';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser]           = useState(null);
+  const [user, setUser]       = useState(null);
   const [isLoggedIn, setLoggedIn] = useState(false);
-  const [loading, setLoading]     = useState(true);
+  const [loading, setLoading] = useState(true);
 
+  // Restore session from stored token on mount
   useEffect(() => {
     const token = localStorage.getItem('campustrade_token');
     if (!token) { setLoading(false); return; }
@@ -50,8 +51,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const logout = useCallback(async () => {
-    try { await api.logout(); } catch {}
+  const logout = useCallback(() => {
     clearToken();
     localStorage.removeItem(REFRESH_KEY);
     setUser(null);
@@ -62,18 +62,8 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.updateMe(updates);
       setUser((prev) => ({ ...prev, ...updates }));
-    } catch {
-      // Silently fail; user will see error via toast in calling component
-    }
+    } catch {}
   }, []);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fcf9f8]">
-        <div className="w-8 h-8 border-4 border-[#ff6b1a] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   // Used after Google login to load user profile from token
   const loadUserFromToken = useCallback(async () => {
@@ -87,6 +77,15 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: err.message };
     }
   }, []);
+
+  // ALL hooks must be above this conditional return
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#fcf9f8]">
+        <div className="w-8 h-8 border-4 border-[#ff6b1a] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={{ user, isLoggedIn, login, register, logout, updateUser, loadUserFromToken }}>

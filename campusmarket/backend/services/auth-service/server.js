@@ -133,13 +133,15 @@ app.post('/api/auth/google', asyncHandler(async (req, res) => {
   const { credential } = req.body;
   if (!credential) throw new AppError('Google credential required', 400);
 
-  // Verify Google ID token
-  const ticket = await googleClient.verifyIdToken({
-    idToken: credential,
-    audience: process.env.GOOGLE_CLIENT_ID,
-  });
-  const payload = ticket.getPayload();
-  const { email, given_name, family_name, picture, sub: googleId } = payload;
+  // Verify ID token via Google tokeninfo API (no local cert download needed)
+  const tokenInfoRes = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`
+  );
+  if (!tokenInfoRes.ok) throw new AppError('Invalid Google token', 401);
+  const payload = await tokenInfoRes.json();
+  if (payload.aud !== process.env.GOOGLE_CLIENT_ID) throw new AppError('Token audience mismatch', 401);
+
+  const { email, given_name, family_name, picture } = payload;
 
   if (!email) throw new AppError('No email in Google account', 400);
 
