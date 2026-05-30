@@ -35,7 +35,7 @@ const authLimiter = rateLimit({
   message: { error: 'Too many authentication attempts, please try again later.' },
 });
 
-const emailRegex = /^[a-zA-Z0-9._%+-]+@ictuniversity\.edu\.cm$/;
+const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 // POST /api/auth/register
 app.post('/api/auth/register', authLimiter, asyncHandler(async (req, res) => {
@@ -75,7 +75,7 @@ app.post('/api/auth/register', authLimiter, asyncHandler(async (req, res) => {
   });
 
   logger.info('User registered', { userId, email: emailCheck.value });
-  res.status(201).json({ message: 'User registered successfully. Please check your email for verification.', userId });
+  res.status(201).json({ message: 'Account created! Check your email to verify your account.', userId });
 }));
 
 // POST /api/auth/login

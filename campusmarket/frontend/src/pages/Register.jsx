@@ -68,11 +68,10 @@ const Register = () => {
     const result = await register(form);
     setLoading(false);
     if (result.success) {
-      localStorage.setItem('pending_verification_email', form.email);
-      showToast('Account created! Please verify your email.', 'success');
+      showToast('Account created! Check your email to verify.', 'success');
       navigate('/verify-email');
     } else {
-      showToast('Registration failed. Try again.', 'error');
+      showToast(result.error || 'Registration failed. Try again.', 'error');
     }
   };
 
@@ -131,7 +130,7 @@ const Register = () => {
                 type="email"
                 value={form.email}
                 onChange={(e) => set('email', e.target.value)}
-                placeholder="you@ictuniversity.edu.cm"
+                placeholder="you@email.com"
                 className={`w-full px-4 py-3 rounded-xl border text-[14px] focus:outline-none focus:ring-2 focus:ring-[#ff6b1a] transition-all ${errors.email ? 'border-red-400' : 'border-[#e2bfb2]'}`}
               />
               {errors.email && <p className="text-red-500 text-[11px] mt-1">{errors.email}</p>}

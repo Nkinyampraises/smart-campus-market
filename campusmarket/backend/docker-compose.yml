@@ -288,7 +288,7 @@ services:
   # ── Monitoring ────────────────────────────────────────────────────────────
 
   prometheus:
-    image: prom/prometheus:v2.51
+    image: prom/prometheus:latest
     restart: unless-stopped
     ports:
       - "9090:9090"
@@ -298,30 +298,21 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   grafana:
-    image: grafana/grafana:10.4
+    image: grafana/grafana:latest
     restart: unless-stopped
     ports:
       - "3009:3000"
     volumes:
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASS:-admin}
-
-  # ── Nginx Gateway (Production) ────────────────────────────────────────────
-
-  nginx:
-    image: nginx:1.25-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASS:-campustrade123}
     depends_on:
-      - api-gateway
+      - prometheus
 
 volumes:
   postgres_data:

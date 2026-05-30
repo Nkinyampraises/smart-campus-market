@@ -34,7 +34,7 @@ const Login = () => {
   };
 
   const handleGoogleLogin = () => {
-    showToast('Google login coming soon!', 'neutral');
+    showToast('Google login requires a Google Cloud OAuth setup. Please use email/password login.', 'neutral');
   };
 
   return (

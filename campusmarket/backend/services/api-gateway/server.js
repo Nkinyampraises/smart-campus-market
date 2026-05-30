@@ -53,9 +53,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Body size limits
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+// NOTE: Do NOT parse body here — proxy must forward raw body to downstream services
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true,
@@ -98,14 +96,16 @@ const attachUser = (req, _res, next) => {
 };
 app.use(attachUser);
 
-// Helper: proxy factory with WS support
+// Helper: proxy factory — streams raw body to downstream service
 const proxy = (target, opts = {}) =>
   createProxyMiddleware({
     target, changeOrigin: true,
-    ws: true, // enable WebSocket proxying
-    onError: (err, _req, res) => {
-      logger.error('Proxy error', { error: err.message, target });
-      if (res && !res.headersSent) res.status(502).json({ error: 'Service temporarily unavailable' });
+    ws: true,
+    on: {
+      error: (err, _req, res) => {
+        logger.error('Proxy error', { error: err.message, target });
+        if (res && !res.headersSent) res.status(502).json({ error: 'Service temporarily unavailable' });
+      },
     },
     ...opts,
   });

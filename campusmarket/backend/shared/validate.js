@@ -6,8 +6,8 @@ function sanitizeString(str, maxLen = 5000) {
 function validateEmail(email) {
   if (typeof email !== 'string') return { valid: false, error: 'Email required' };
   const trimmed = email.trim().toLowerCase();
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@ictuniversity\.edu\.cm$/;
-  if (!emailRegex.test(trimmed)) return { valid: false, error: 'Only @ictuniversity.edu.cm emails are allowed' };
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(trimmed)) return { valid: false, error: 'Please enter a valid email address' };
   return { valid: true, value: trimmed };
 }
 
