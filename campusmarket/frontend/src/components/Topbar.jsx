@@ -29,7 +29,7 @@ const Topbar = ({ activePage }) => {
   const handleLogout = () => {
     logout();
     showToast('Logged out successfully', 'neutral');
-    navigate('/home');
+    window.location.href = '/home';
   };
 
   const isActive = (page) => activePage === page;

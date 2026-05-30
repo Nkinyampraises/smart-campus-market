@@ -23,7 +23,7 @@ const Login = () => {
       const result = await login(email, password);
       if (result.success) {
         showToast('Welcome back!', 'success');
-        navigate('/home');
+        window.location.href = '/browse';
       } else if (result.suspended) {
         navigate('/suspended');
       } else {
@@ -39,15 +39,12 @@ const Login = () => {
   const onGoogleSuccess = async (credentialResponse) => {
     setGoogleLoading(true);
     try {
-      // credentialResponse.credential is a real ID token (JWT) — send it directly to backend
       const data = await api.googleLogin(credentialResponse.credential);
       saveToken(data.accessToken);
-      await loadUserFromToken();
-      showToast('Welcome!', 'success');
-      navigate('/home');
+      // Full page reload so AuthContext re-initialises with the new token
+      window.location.href = '/browse';
     } catch (err) {
       showToast(err.message || 'Google login failed', 'error');
-    } finally {
       setGoogleLoading(false);
     }
   };
