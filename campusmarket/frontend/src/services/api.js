@@ -28,9 +28,10 @@ const del  = (path)        => request('DELETE', path);
 
 export const api = {
   // ── Auth ──────────────────────────────────────────────────────────────────
-  login:       (email, password) => post('/api/auth/login', { email, password }),
-  register:    (data)            => post('/api/auth/register', data),
-  verifyEmail: (token)           => get(`/api/auth/verify/${token}`),
+  login:        (email, password) => post('/api/auth/login', { email, password }),
+  register:     (data)            => post('/api/auth/register', data),
+  verifyEmail:  (token)           => get(`/api/auth/verify/${token}`),
+  googleLogin:  (credential)      => post('/api/auth/google', { credential }),
   logout:      ()               => post('/api/auth/logout'),
   refresh:     ()               => post('/api/auth/refresh'),
   forgotPassword: (email)       => post('/api/auth/forgot-password', { email }),

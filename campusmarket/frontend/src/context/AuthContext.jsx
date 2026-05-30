@@ -75,8 +75,21 @@ export const AuthProvider = ({ children }) => {
     );
   }
 
+  // Used after Google login to load user profile from token
+  const loadUserFromToken = useCallback(async () => {
+    try {
+      const me = await api.getMe();
+      setUser(me);
+      setLoggedIn(true);
+      return { success: true, user: me };
+    } catch (err) {
+      clearToken();
+      return { success: false, error: err.message };
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isLoggedIn, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, isLoggedIn, login, register, logout, updateUser, loadUserFromToken }}>
       {children}
     </AuthContext.Provider>
   );
