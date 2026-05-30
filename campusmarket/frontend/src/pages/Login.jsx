@@ -8,7 +8,7 @@ import AuthNavbar from '../components/AuthNavbar';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, loadUserFromToken } = useAuth();
+  const { login } = useAuth();
   const { showToast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
