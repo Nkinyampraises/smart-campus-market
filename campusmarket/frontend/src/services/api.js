@@ -89,7 +89,9 @@ export const api = {
   getNotifications: ()  => get('/api/notifications'),
   getUnreadCount:   ()  => get('/api/notifications/unread-count'),
   markReadNotif:    (id) => patch(`/api/notifications/${id}/read`),
-  markAllRead:      ()  => patch('/api/notifications/read-all'),
+  markAllRead:      ()     => patch('/api/notifications/read-all'),
+  subscribePush:    (data) => post('/api/notifications/push/subscribe', data),
+  unsubscribePush:  (data) => post('/api/notifications/push/unsubscribe', data),
 
   // ── Reports ───────────────────────────────────────────────────────────────
   fileReport: (data) => post('/api/reports', data),

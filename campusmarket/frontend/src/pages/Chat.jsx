@@ -121,7 +121,11 @@ const Chat = () => {
     if (conv.partner_name) return conv.partner_name;
     const first = conv.partner_first || '';
     const last  = conv.partner_last  || '';
-    return (first + ' ' + last).trim() || 'Seller';
+    const fullName = (first + ' ' + last).trim();
+    if (fullName) return fullName;
+    // Fall back to email prefix
+    if (conv.partner_email) return conv.partner_email.split('@')[0];
+    return 'Campus Seller';
   };
 
   const partnerInitials = (conv) => {

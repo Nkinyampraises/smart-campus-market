@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const nodemailer = require('nodemailer');
+const webpush = require('web-push');
 const cors = require('cors');
 const helmet = require('helmet');
 const { collectDefaultMetrics, register } = require('prom-client');
@@ -10,6 +11,13 @@ const { asyncHandler, AppError } = require('../../shared/errorHandler');
 const logger = require('../../shared/logger');
 const { metricsMiddleware } = require('../../shared/metrics');
 const { initRedis, closeRedis, subscribeToEvents, EVENT_CHANNELS, EVENT_TYPES } = require('../../shared/events');
+
+// Configure VAPID for Web Push
+webpush.setVapidDetails(
+  process.env.VAPID_EMAIL || 'mailto:admin@campustrade.cm',
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
 
 const app = express();
 const PORT = process.env.PORT || 3008;
@@ -74,6 +82,16 @@ async function saveNotification(userId, type, title, description, link = null) {
     'INSERT INTO notifications (user_id, type, title, description, link, is_read, created_at) VALUES ($1,$2,$3,$4,$5,false,NOW())',
     [userId, type, title, description, link]
   ).catch((e) => logger.error('Notification save failed', { error: e.message }));
+
+  // Also send browser push notification immediately
+  await sendPushToUser(userId, {
+    title,
+    body: description,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    url: link || '/',
+    tag: type,
+  });
 }
 
 async function sendEmail(to, subject, html) {
@@ -83,6 +101,53 @@ async function sendEmail(to, subject, html) {
     logger.info('Email sent', { to, subject });
   } catch (err) {
     logger.error('Email send error', { to, error: err.message });
+  }
+}
+
+// ── Push Subscription endpoints ───────────────────────────────────────────
+
+// POST /api/notifications/push/subscribe — save browser push subscription
+app.post('/api/notifications/push/subscribe', authenticate, asyncHandler(async (req, res) => {
+  const { endpoint, keys } = req.body;
+  if (!endpoint || !keys?.p256dh || !keys?.auth) throw new AppError('Invalid subscription', 400);
+  await pool.query(
+    `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (user_id, endpoint) DO UPDATE SET p256dh=$3, auth=$4`,
+    [req.user.userId, endpoint, keys.p256dh, keys.auth]
+  );
+  res.json({ message: 'Subscribed to push notifications' });
+}));
+
+// DELETE /api/notifications/push/unsubscribe
+app.delete('/api/notifications/push/unsubscribe', authenticate, asyncHandler(async (req, res) => {
+  const { endpoint } = req.body;
+  await pool.query('DELETE FROM push_subscriptions WHERE user_id=$1 AND endpoint=$2', [req.user.userId, endpoint]);
+  res.json({ message: 'Unsubscribed' });
+}));
+
+// GET /api/notifications/push/vapid-public-key — frontend needs this to subscribe
+app.get('/api/notifications/push/vapid-public-key', (_req, res) => {
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+});
+
+// ── Push helper ───────────────────────────────────────────────────────────
+
+async function sendPushToUser(userId, payload) {
+  try {
+    const subs = await pool.query('SELECT * FROM push_subscriptions WHERE user_id=$1', [userId]);
+    const message = JSON.stringify(payload);
+    for (const sub of subs.rows) {
+      const pushSub = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } };
+      webpush.sendNotification(pushSub, message).catch((err) => {
+        // Remove invalid/expired subscriptions
+        if (err.statusCode === 404 || err.statusCode === 410) {
+          pool.query('DELETE FROM push_subscriptions WHERE endpoint=$1', [sub.endpoint]).catch(() => {});
+        }
+      });
+    }
+  } catch (err) {
+    logger.error('Push send error', { error: err.message });
   }
 }
 

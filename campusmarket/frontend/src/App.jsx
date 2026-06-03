@@ -2,12 +2,20 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // Providers
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { SocketProvider } from './context/SocketContext';
+import { usePushNotifications } from './hooks/usePushNotifications';
 
 // Guards
 import ProtectedRoute from './components/ProtectedRoute';
+
+// Inner wrapper that activates push after auth is known
+function AppWithPush({ children }) {
+  const { isLoggedIn } = useAuth();
+  usePushNotifications(isLoggedIn);
+  return children;
+}
 
 // Auth Pages
 import Login from './pages/Login';
@@ -66,6 +74,7 @@ function App() {
       <AuthProvider>
         <ToastProvider>
           <SocketProvider>
+            <AppWithPush>
             <Routes>
             {/* Root → Home */}
             <Route path="/" element={<Navigate to="/home" replace />} />
@@ -124,6 +133,7 @@ function App() {
             {/* Catch-all → Not Found */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+            </AppWithPush>
           </SocketProvider>
         </ToastProvider>
       </AuthProvider>

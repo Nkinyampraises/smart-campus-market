@@ -35,7 +35,7 @@ app.get('/api/conversations', authenticate, asyncHandler(async (req, res) => {
       (SELECT created_at FROM messages WHERE conversation_id=c.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
       (SELECT COUNT(*)::int FROM messages WHERE conversation_id=c.id AND is_read=false AND sender_id<>$1) as unread_count,
       CASE WHEN c.buyer_id=$1 THEN c.seller_id ELSE c.buyer_id END as partner_id,
-      u.first_name as partner_first, u.last_name as partner_last, u.avatar_url as partner_avatar
+      u.first_name as partner_first, u.last_name as partner_last, u.avatar_url as partner_avatar, u.email as partner_email
      FROM conversations c
      LEFT JOIN users u ON u.id = CASE WHEN c.buyer_id=$1 THEN c.seller_id ELSE c.buyer_id END
      WHERE c.buyer_id=$1 OR c.seller_id=$1
