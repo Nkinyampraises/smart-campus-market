@@ -10,13 +10,6 @@ import { usePushNotifications } from './hooks/usePushNotifications';
 // Guards
 import ProtectedRoute from './components/ProtectedRoute';
 
-// Inner wrapper that activates push after auth is known
-function AppWithPush({ children }) {
-  const { isLoggedIn } = useAuth();
-  usePushNotifications(isLoggedIn);
-  return children;
-}
-
 // Auth Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -67,6 +60,13 @@ import AdminFraud from './pages/AdminFraud';
 import NotFound from './pages/NotFound';
 import Forbidden from './pages/Forbidden';
 import Suspended from './pages/Suspended';
+
+// Activates push notifications once user is logged in
+function AppWithPush({ children }) {
+  const { isLoggedIn } = useAuth();
+  usePushNotifications(isLoggedIn);
+  return children;
+}
 
 function App() {
   return (
