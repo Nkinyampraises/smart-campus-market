@@ -23,7 +23,8 @@ const Login = () => {
       const result = await login(email, password);
       if (result.success) {
         showToast('Welcome back!', 'success');
-        window.location.href = '/browse';
+        // Admins go to dashboard, regular users go to browse
+        window.location.href = result.user?.role === 'admin' ? '/admin/dashboard' : '/browse';
       } else if (result.suspended) {
         navigate('/suspended');
       } else {

@@ -9,6 +9,7 @@ import { usePushNotifications } from './hooks/usePushNotifications';
 
 // Guards
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
 
 // Auth Pages
 import Login from './pages/Login';
@@ -119,11 +120,11 @@ function App() {
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
 
             {/* Admin Routes */}
-            <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-            <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
-            <Route path="/admin/listings" element={<ProtectedRoute><AdminListings /></ProtectedRoute>} />
-            <Route path="/admin/reports" element={<ProtectedRoute><AdminReports /></ProtectedRoute>} />
-            <Route path="/admin/fraud" element={<ProtectedRoute><AdminFraud /></ProtectedRoute>} />
+            <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+            <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+            <Route path="/admin/listings" element={<AdminRoute><AdminListings /></AdminRoute>} />
+            <Route path="/admin/reports" element={<AdminRoute><AdminReports /></AdminRoute>} />
+            <Route path="/admin/fraud" element={<AdminRoute><AdminFraud /></AdminRoute>} />
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
 
             {/* Error / Status Pages */}

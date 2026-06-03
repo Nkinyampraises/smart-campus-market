@@ -121,6 +121,17 @@ const Topbar = ({ activePage }) => {
                         <p className="font-bold text-[14px] text-[#1b1c1c]">{user?.name}</p>
                         <p className="text-[12px] text-gray-400 truncate">{user?.email}</p>
                       </div>
+                      {/* Admin shortcut */}
+                      {user?.role === 'admin' && (
+                        <Link
+                          to="/admin/dashboard"
+                          onClick={() => setShowUserMenu(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-[14px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 no-underline transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+                          Admin Dashboard
+                        </Link>
+                      )}
                       {[
                         { label: 'My Profile', icon: 'person', link: '/my-profile' },
                         { label: 'My Listings', icon: 'list_alt', link: '/my-listings' },
