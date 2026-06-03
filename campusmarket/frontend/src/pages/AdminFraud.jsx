@@ -11,9 +11,9 @@ const AdminFraud = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#fcf9f8] flex">
+    <div className="min-h-screen bg-[#f8f9fa]">
       <AdminSidebar activePage="fraud" />
-      <main className="flex-1 p-8">
+      <div className="max-w-[1400px] mx-auto px-6 py-8">
         <h1 className="text-[28px] font-black text-[#1b1c1c] mb-2">Fraud Detection</h1>
         <p className="text-[14px] text-gray-500 mb-8">AI-flagged suspicious listings and behaviour</p>
         {loading ? (
@@ -42,7 +42,7 @@ const AdminFraud = () => {
             ))}
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 };

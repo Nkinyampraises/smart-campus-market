@@ -26,9 +26,9 @@ const AdminUsers = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#fcf9f8] flex">
+    <div className="min-h-screen bg-[#f8f9fa]">
       <AdminSidebar activePage="users" />
-      <main className="flex-1 p-8">
+      <div className="max-w-[1400px] mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-[28px] font-black text-[#1b1c1c]">Users</h1>
           <input type="text" placeholder="Search users…" value={search} onChange={(e) => setSearch(e.target.value)}
@@ -73,7 +73,7 @@ const AdminUsers = () => {
             {filtered.length === 0 && <p className="text-center text-gray-400 py-10">No users found</p>}
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 };

@@ -1,81 +1,89 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { api } from '../services/api';
+import React, { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
-const baseNavItems = [
-  { icon: 'dashboard', label: 'Dashboard', path: '/admin/dashboard' },
-  { icon: 'group', label: 'Users', path: '/admin/users' },
-  { icon: 'store', label: 'Listings', path: '/admin/listings' },
-  { icon: 'flag', label: 'Reports', path: '/admin/reports' },
-  { icon: 'gpp_bad', label: 'Fraud Alerts', path: '/admin/fraud' },
+const NAV = [
+  { label: 'Dashboard', path: '/admin/dashboard' },
+  { label: 'Alerts',    path: '/admin/fraud' },
+  { label: 'Users',     path: '/admin/users' },
+  { label: 'Listings',  path: '/admin/listings' },
+  { label: 'Reports',   path: '/admin/reports' },
 ];
 
 const AdminSidebar = () => {
   const location = useLocation();
-  const [stats, setStats] = useState({ pendingReports: 0, fraudFlags: 0 });
+  const navigate  = useNavigate();
+  const { user, logout } = useAuth();
+  const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    api.adminStats().then((s) => {
-      if (s) setStats({ pendingReports: s.pendingReports || 0, fraudFlags: s.fraudFlags || 0 });
-    }).catch(() => {});
-  }, []);
-
-  const navItems = baseNavItems.map((item) => {
-    if (item.label === 'Reports') return { ...item, badge: stats.pendingReports };
-    if (item.label === 'Fraud Alerts') return { ...item, badge: stats.fraudFlags };
-    return item;
-  });
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (search.trim()) navigate(`/admin/users?q=${encodeURIComponent(search.trim())}`);
+  };
 
   return (
-    <aside className="hidden md:flex flex-col w-64 border-r border-gray-100 bg-white p-4 gap-2 sticky top-[61px] h-[calc(100vh-61px)] overflow-y-auto flex-shrink-0">
-      {/* Admin Badge */}
-      <div className="mb-5 px-2">
-        <span className="inline-block bg-red-600 text-white text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full mb-3">
-          Admin Panel
-        </span>
-        <p className="text-[12px] text-gray-400">Platform Management</p>
-      </div>
-
-      <nav className="flex flex-col gap-1 flex-1">
-        {navItems.map((item) => {
-          const active = location.pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-[13px] no-underline ${
-                active
-                  ? 'bg-orange-50 text-[#ff6b1a] font-bold'
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-[#1b1c1c]'
-              }`}
-            >
-              <span
-                className="material-symbols-outlined text-[20px]"
-                style={{ color: active ? '#ff6b1a' : undefined }}
-              >
-                {item.icon}
-              </span>
-              <span className="flex-1">{item.label}</span>
-              {item.badge > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                  {item.badge}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="border-t border-gray-100 pt-4">
-        <Link
-          to="/browse"
-          className="flex items-center gap-3 px-4 py-3 text-gray-500 hover:bg-gray-50 rounded-lg transition-all text-[13px] no-underline"
-        >
-          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-          <span>Back to Marketplace</span>
+    <header className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-50">
+      <div className="max-w-[1400px] mx-auto px-6 h-14 flex items-center gap-6">
+        {/* Logo */}
+        <Link to="/admin/dashboard" className="text-[18px] font-black tracking-tighter text-[#ff6b1a] no-underline flex-shrink-0">
+          CampusTrade
         </Link>
+
+        {/* Nav links */}
+        <nav className="flex items-center gap-1">
+          {NAV.map((n) => {
+            const active = location.pathname === n.path;
+            return (
+              <Link
+                key={n.path}
+                to={n.path}
+                className={`px-3 py-1.5 rounded-lg text-[13px] font-semibold no-underline transition-colors ${
+                  active
+                    ? 'text-[#ff6b1a] border-b-2 border-[#ff6b1a] rounded-none'
+                    : 'text-gray-600 hover:text-[#ff6b1a]'
+                }`}
+              >
+                {n.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Search */}
+        <form onSubmit={handleSearch} className="flex-1 max-w-xs ml-2">
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[16px]">search</span>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search alerts..."
+              className="w-full pl-9 pr-4 py-1.5 bg-gray-100 rounded-full text-[13px] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#ff6b1a]/30 transition-all"
+            />
+          </div>
+        </form>
+
+        {/* Right */}
+        <div className="ml-auto flex items-center gap-3">
+          <button className="relative p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+            <span className="material-symbols-outlined text-gray-500 text-[22px]">notifications</span>
+          </button>
+          <div className="flex items-center gap-2">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-[11px]"
+              style={{ backgroundColor: '#ff6b1a' }}
+            >
+              {user?.first_name?.[0] || user?.email?.[0]?.toUpperCase() || 'A'}
+            </div>
+          </div>
+          <Link
+            to="/browse"
+            className="text-[12px] text-gray-400 hover:text-[#ff6b1a] no-underline transition-colors"
+          >
+            ← Marketplace
+          </Link>
+        </div>
       </div>
-    </aside>
+    </header>
   );
 };
 
