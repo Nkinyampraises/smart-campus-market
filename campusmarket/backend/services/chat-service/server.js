@@ -63,6 +63,35 @@ app.get('/api/conversations/:id/messages', authenticate, asyncHandler(async (req
   res.json(result.rows);
 }));
 
+// POST /api/conversations/:id/messages — send a message
+app.post('/api/conversations/:id/messages', authenticate, asyncHandler(async (req, res) => {
+  const convId = req.params.id;
+  const { text, type = 'text', offer_amount } = req.body;
+  if (!text) throw new AppError('Message text required', 400);
+
+  const conv = await pool.query('SELECT buyer_id, seller_id FROM conversations WHERE id=$1', [convId]);
+  if (!conv.rows.length) throw new AppError('Conversation not found', 404);
+  const { buyer_id, seller_id } = conv.rows[0];
+  if (buyer_id !== req.user.userId && seller_id !== req.user.userId) throw new AppError('Forbidden', 403);
+
+  const result = await pool.query(
+    'INSERT INTO messages (conversation_id, sender_id, text, type, offer_amount, created_at) VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *',
+    [convId, req.user.userId, text, type, offer_amount || null]
+  );
+
+  // Notify the other party
+  const recipientId = buyer_id === req.user.userId ? seller_id : buyer_id;
+  await publishEvent(EVENT_CHANNELS.NOTIFICATION, {
+    type: 'new_message',
+    conversationId: convId,
+    senderId: req.user.userId,
+    recipientId,
+    text: type === 'text' ? text.slice(0, 80) : `Sent a ${type}`,
+  });
+
+  res.status(201).json(result.rows[0]);
+}));
+
 // POST /api/conversations
 app.post('/api/conversations', authenticate, asyncHandler(async (req, res) => {
   const { seller_id, listing_id } = req.body;

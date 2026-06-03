@@ -72,12 +72,12 @@ const Home = () => {
   const tabs = ['All', 'Textbooks', 'Tech'];
 
   useEffect(() => {
-    // Fetch 8 most recent listings; first 4 go to trending, next 4 to recent
     api.getListings({ limit: 8 })
       .then((data) => {
         const listings = Array.isArray(data) ? data : [];
         setTrending(listings.slice(0, 4));
-        setRecent(listings.slice(4, 8));
+        // recent shows all listings so even 1-4 items still appear
+        setRecent(listings);
       })
       .catch(() => {});
   }, []);

@@ -79,9 +79,10 @@ export const api = {
   updateOffer:   (id, data)    => patch(`/api/offers/${id}`, data),
 
   // ── Chat ──────────────────────────────────────────────────────────────────
-  getConversations:  ()        => get('/api/conversations'),
-  getMessages:       (id)      => get(`/api/conversations/${id}/messages`),
-  startConversation: (data)    => post('/api/conversations', data),
+  getConversations:  ()          => get('/api/conversations'),
+  getMessages:       (id)        => get(`/api/conversations/${id}/messages`),
+  startConversation: (data)      => post('/api/conversations', data),
+  sendMessage:       (id, data)  => post(`/api/conversations/${id}/messages`, data),
   markRead:          (id)      => patch(`/api/conversations/${id}/read`),
 
   // ── Notifications ─────────────────────────────────────────────────────────
