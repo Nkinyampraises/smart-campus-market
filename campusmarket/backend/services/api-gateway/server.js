@@ -69,7 +69,8 @@ app.use(limiter);
 
 // Per-route stricter rate limiters
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many auth attempts, please try again later' } });
-const strictLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 50 });
+const strictLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500 });
+const adminLimiter  = rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 });
 
 // Service URLs (from env or defaults)
 const SERVICES = {
@@ -128,7 +129,7 @@ app.use('/api/conversations', proxy(SERVICES.chat));
 app.use('/api/offers', proxy(SERVICES.chat));
 
 // Admin service
-app.use('/api/admin', strictLimiter, proxy(SERVICES.admin));
+app.use('/api/admin', adminLimiter, proxy(SERVICES.admin));
 
 // AI service
 app.use('/api/ai', proxy(SERVICES.ai));
