@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AdminSidebar from '../components/AdminSidebar';
+import AdminLayout from '../components/AdminLayout';
 import { api } from '../services/api';
 import { formatFCFA } from '../utils/format';
 
@@ -19,8 +19,7 @@ const AdminListings = () => {
     s === 'sold' ? 'bg-gray-100 text-gray-500' : 'bg-red-100 text-red-600';
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa]">
-      <AdminSidebar activePage="listings" />
+    <AdminLayout>
       <div className="max-w-[1400px] mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-[28px] font-black text-[#1b1c1c]">Listings</h1>
@@ -55,7 +54,7 @@ const AdminListings = () => {
           </div>
         )}
       </div>
-    </div>
+    </AdminLayout>
   );
 };
 

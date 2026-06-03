@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AdminSidebar from '../components/AdminSidebar';
+import AdminLayout from '../components/AdminLayout';
 import { api } from '../services/api';
 import { formatFCFA } from '../utils/format';
 
@@ -38,15 +38,23 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      api.adminStats().catch(() => null),
-      api.adminReports().catch(() => []),
-      api.adminListings().catch(() => []),
-    ]).then(([s, r, l]) => {
-      setStats(s);
-      setReports(Array.isArray(r) ? r.slice(0, 5) : []);
-      setListings(Array.isArray(l) ? l : []);
-    }).finally(() => setLoading(false));
+    const load = async () => {
+      try {
+        const [s, r, l] = await Promise.all([
+          api.adminStats().catch(() => ({})),
+          api.adminReports().catch(() => []),
+          api.adminListings().catch(() => []),
+        ]);
+        setStats(s || {});
+        setReports(Array.isArray(r) ? r.slice(0, 5) : []);
+        setListings(Array.isArray(l) ? l : []);
+      } catch (e) {
+        console.error('Dashboard load error:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
   }, []);
 
   // Listing distribution by category
@@ -64,10 +72,8 @@ const AdminDashboard = () => {
   const totalVolume = listings.reduce((s, l) => s + (l.price_fcfa || 0), 0);
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa]">
-      <AdminSidebar />
-
-      <main className="max-w-[1400px] mx-auto px-6 py-8">
+    <AdminLayout>
+      <div>
 
         {/* Header */}
         <div className="mb-8">
@@ -229,8 +235,8 @@ const AdminDashboard = () => {
             </div>
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 };
 

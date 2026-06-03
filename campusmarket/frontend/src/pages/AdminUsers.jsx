@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import AdminSidebar from '../components/AdminSidebar';
+import AdminLayout from '../components/AdminLayout';
 import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
@@ -26,8 +26,7 @@ const AdminUsers = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa]">
-      <AdminSidebar activePage="users" />
+    <AdminLayout>
       <div className="max-w-[1400px] mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-[28px] font-black text-[#1b1c1c]">Users</h1>
@@ -74,7 +73,7 @@ const AdminUsers = () => {
           </div>
         )}
       </div>
-    </div>
+    </AdminLayout>
   );
 };
 

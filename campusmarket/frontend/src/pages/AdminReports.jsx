@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import AdminSidebar from '../components/AdminSidebar';
+import AdminLayout from '../components/AdminLayout';
 import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
@@ -24,8 +24,7 @@ const AdminReports = () => {
     s === 'high' ? 'bg-red-100 text-red-600' : s === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500';
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa]">
-      <AdminSidebar activePage="reports" />
+    <AdminLayout>
       <div className="max-w-[1400px] mx-auto px-6 py-8">
         <h1 className="text-[28px] font-black text-[#1b1c1c] mb-8">Reports</h1>
         {loading ? (
@@ -59,7 +58,7 @@ const AdminReports = () => {
           </div>
         )}
       </div>
-    </div>
+    </AdminLayout>
   );
 };
 

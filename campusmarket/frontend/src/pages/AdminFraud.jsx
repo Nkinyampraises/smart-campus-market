@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import AdminSidebar from '../components/AdminSidebar';
+import AdminLayout from '../components/AdminLayout';
 import { api } from '../services/api';
 
 const AdminFraud = () => {
@@ -11,8 +11,7 @@ const AdminFraud = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa]">
-      <AdminSidebar activePage="fraud" />
+    <AdminLayout>
       <div className="max-w-[1400px] mx-auto px-6 py-8">
         <h1 className="text-[28px] font-black text-[#1b1c1c] mb-2">Fraud Detection</h1>
         <p className="text-[14px] text-gray-500 mb-8">AI-flagged suspicious listings and behaviour</p>
@@ -43,7 +42,7 @@ const AdminFraud = () => {
           </div>
         )}
       </div>
-    </div>
+    </AdminLayout>
   );
 };
 
