@@ -104,10 +104,14 @@ const Topbar = ({ activePage }) => {
               <div className="relative ml-1">
                 <button
                   onClick={() => setShowUserMenu((v) => !v)}
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black text-[12px] border-2 border-white shadow-sm hover:opacity-90 transition-opacity"
-                  style={{ backgroundColor: user?.color || '#ff6b1a' }}
+                  className="w-9 h-9 rounded-full overflow-hidden border-2 border-white shadow-sm hover:opacity-90 transition-opacity flex items-center justify-center text-white font-black text-[12px]"
+                  style={{ backgroundColor: user?.avatar_url ? 'transparent' : '#ff6b1a' }}
                 >
-                  {user?.initials || 'ME'}
+                  {user?.avatar_url ? (
+                    <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    (user?.first_name?.[0] || '') + (user?.last_name?.[0] || '') || user?.email?.[0]?.toUpperCase() || 'ME'
+                  )}
                 </button>
 
                 {showUserMenu && (
