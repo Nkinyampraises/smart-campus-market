@@ -4,6 +4,16 @@ import Topbar from '../components/Topbar';
 import { api } from '../services/api';
 import { formatFCFA } from '../utils/format';
 
+const CATEGORY_IMAGES = {
+  Textbooks:   'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=600&h=400&fit=crop',
+  Electronics: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&h=400&fit=crop',
+  Housing:     'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&h=400&fit=crop',
+  Clothing:    'https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=600&h=400&fit=crop',
+  Services:    'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=400&fit=crop',
+  Accessories: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&h=400&fit=crop',
+  default:     'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=600&h=400&fit=crop',
+};
+
 const CATEGORIES = [
   { name: 'Textbooks',    icon: 'menu_book' },
   { name: 'Electronics',  icon: 'devices' },
@@ -16,7 +26,8 @@ const CONDITIONS = ['All', 'New', 'Used'];
 const SORT_OPTIONS = ['Newest', 'Oldest', 'Price: Low to High', 'Price: High to Low'];
 
 const ListingGridCard = ({ listing, onClick, onWishlist, isWishlisted }) => {
-  const image  = listing.images?.[0] || listing.image || 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=600&h=400&fit=crop';
+  const image  = listing.images?.[0] || listing.image ||
+    CATEGORY_IMAGES[listing.category] || CATEGORY_IMAGES.default;
   const price  = listing.price_fcfa || listing.priceFCFA || listing.price || 0;
   const seller = listing.seller || {};
 

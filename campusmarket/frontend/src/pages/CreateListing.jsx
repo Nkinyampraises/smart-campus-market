@@ -63,10 +63,14 @@ const CreateListing = () => {
   };
 
   const handleFiles = (files) => {
-    const newPreviews = Array.from(files)
-      .slice(0, 5 - previews.length)
-      .map((f) => URL.createObjectURL(f));
-    setPreviews((prev) => [...prev, ...newPreviews].slice(0, 5));
+    const fileArray = Array.from(files).slice(0, 5 - previews.length);
+    fileArray.forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviews((prev) => [...prev, reader.result].slice(0, 5));
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
   const validate = () => {

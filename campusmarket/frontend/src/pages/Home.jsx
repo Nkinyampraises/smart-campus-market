@@ -11,8 +11,19 @@ const defaultStats = [
   { label: 'Messages', value: '-' },
 ];
 
+const CATEGORY_IMAGES = {
+  Textbooks:   'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=600&h=400&fit=crop',
+  Electronics: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&h=400&fit=crop',
+  Housing:     'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&h=400&fit=crop',
+  Clothing:    'https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=600&h=400&fit=crop',
+  Services:    'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=400&fit=crop',
+  Accessories: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&h=400&fit=crop',
+};
+
 const HomeCard = ({ listing, onClick, showTime = false }) => {
-  const image = listing.images?.[0] || listing.image || '';
+  const image = listing.images?.[0] || listing.image ||
+    CATEGORY_IMAGES[listing.category] ||
+    'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=600&h=400&fit=crop';
   const price = listing.priceFCFA || listing.price || 0;
 
   return (
@@ -61,12 +72,14 @@ const Home = () => {
   const tabs = ['All', 'Textbooks', 'Tech'];
 
   useEffect(() => {
-    api.getListings({ limit: 4 }).then(setTrending).catch(() => {});
-    api.getListings({ limit: 4, page: 2 }).then(setRecent).catch(() => {});
-    api.trending().then((data) => {
-      if (Array.isArray(data)) setTrending(data.slice(0, 4));
-      if (data?.trending_listings) setTrending(data.trending_listings.slice(0, 4));
-    }).catch(() => {});
+    // Fetch 8 most recent listings; first 4 go to trending, next 4 to recent
+    api.getListings({ limit: 8 })
+      .then((data) => {
+        const listings = Array.isArray(data) ? data : [];
+        setTrending(listings.slice(0, 4));
+        setRecent(listings.slice(4, 8));
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
