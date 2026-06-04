@@ -53,7 +53,7 @@ async function getCategoryAvgPrice(category) {
   if (cached) return JSON.parse(cached);
 
   const result = await pool.query(
-    "SELECT AVG(price_fcfa)::float as avg, COUNT(*)::int as cnt FROM transactions WHERE listing_id IN (SELECT id FROM listings WHERE category=$1) AND completed_at > NOW() - INTERVAL '90 days'",
+    "SELECT AVG(final_price)::float as avg, COUNT(*)::int as cnt FROM transactions WHERE listing_id IN (SELECT id FROM listings WHERE category=$1) AND completed_at > NOW() - INTERVAL '90 days'",
     [category]
   );
   const data = { avg: result.rows[0].avg || 0, count: result.rows[0].cnt || 0 };
