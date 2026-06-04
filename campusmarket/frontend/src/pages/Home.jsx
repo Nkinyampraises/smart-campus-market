@@ -12,12 +12,19 @@ const defaultStats = [
 ];
 
 const CATEGORY_IMAGES = {
-  Textbooks:   'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=600&h=400&fit=crop',
-  Electronics: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&h=400&fit=crop',
-  Housing:     'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&h=400&fit=crop',
-  Clothing:    'https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=600&h=400&fit=crop',
-  Services:    'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=400&fit=crop',
-  Accessories: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&h=400&fit=crop',
+  Electronics:   'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&h=400&fit=crop',
+  Clothing:      'https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=600&h=400&fit=crop',
+  Services:      'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=400&fit=crop',
+  Accessories:   'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&h=400&fit=crop',
+  Cosmetics:     'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600&h=400&fit=crop',
+  Perfumes:      'https://images.unsplash.com/photo-1541643600914-78b084683702?w=600&h=400&fit=crop',
+  Bracelets:     'https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=600&h=400&fit=crop',
+  'Fruit Salad': 'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=600&h=400&fit=crop',
+  Juice:         'https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=600&h=400&fit=crop',
+  'Pancake/Cake':'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=600&h=400&fit=crop',
+  Shawarma:      'https://images.unsplash.com/photo-1551248429-40975aa4de74?w=600&h=400&fit=crop',
+  Shoes:         'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&h=400&fit=crop',
+  'Liquid Soap': 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=600&h=400&fit=crop',
 };
 
 const HomeCard = ({ listing, onClick, showTime = false }) => {

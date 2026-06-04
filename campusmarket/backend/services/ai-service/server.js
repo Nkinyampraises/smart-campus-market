@@ -20,13 +20,20 @@ let server;
 
 // Minimum reference prices per category (FCFA) — used when no sales data exists
 const CATEGORY_MIN_PRICES = {
-  Electronics:  50000,   // ~$80 — floor for any electronics
-  Textbooks:     3000,   // ~$5
-  Housing:      15000,   // ~$25
-  Clothing:      2000,   // ~$3
-  Accessories:   5000,   // ~$8
-  Services:      1000,   // ~$1.5
-  default:       2000,
+  Electronics:    2000,
+  Clothing:       2000,
+  Services:       1000,
+  Accessories:     500,
+  Cosmetics:       500,
+  Perfumes:        250,
+  Bracelets:       100,
+  'Fruit Salad':   500,
+  Juice:           350,
+  'Pancake/Cake':  250,
+  Shawarma:        500,
+  Shoes:          1500,
+  'Liquid Soap':   500,
+  default:         250,
 };
 
 collectDefaultMetrics();
