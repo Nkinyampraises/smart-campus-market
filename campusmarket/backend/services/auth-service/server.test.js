@@ -2,12 +2,22 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 
 // Mock shared modules before requiring server
+jest.mock('prom-client', () => ({
+  collectDefaultMetrics: jest.fn(),
+  Histogram: jest.fn().mockImplementation(() => ({ observe: jest.fn(), startTimer: jest.fn(() => jest.fn()) })),
+  Counter: jest.fn().mockImplementation(() => ({ inc: jest.fn() })),
+  Gauge: jest.fn().mockImplementation(() => ({ set: jest.fn(), inc: jest.fn(), dec: jest.fn() })),
+  Registry: jest.fn().mockImplementation(() => ({ contentType: 'text/plain', metrics: jest.fn().mockResolvedValue('') })),
+  register: { contentType: 'text/plain', metrics: jest.fn().mockResolvedValue(''), registerMetric: jest.fn() },
+}));
+jest.mock('../../shared/metrics', () => ({ metricsMiddleware: (req, res, next) => next() }));
 jest.mock('../../shared/db', () => ({
   query: jest.fn(),
 }));
 jest.mock('../../shared/logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
+  warn: jest.fn(),
 }));
 jest.mock('../../shared/events', () => ({
   initRedis: jest.fn().mockResolvedValue(),

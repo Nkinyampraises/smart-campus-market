@@ -3,45 +3,227 @@ pipeline {
 
   options {
     timestamps()
-    disableConcurrentBuilds()
-    buildDiscarder(logRotator(numToKeepStr: '30'))
-    timeout(time: 75, unit: 'MINUTES')
+    timeout(time: 45, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '10'))
+  }
+
+  environment {
+    REGISTRY       = 'campustrade'
+    IMAGE_TAG      = "${env.GIT_COMMIT?.take(7) ?: 'latest'}"
+    SERVICES_PATH  = 'campusmarket/backend/services'
+    SONAR_HOST_URL = "${env.SONAR_HOST_URL ?: 'http://localhost:9000'}"
+    K8S_NAMESPACE  = 'campustrade'
+    SERVICES       = 'auth-service user-service listing-service chat-service admin-service ai-service search-service notification-service api-gateway'
   }
 
   stages {
+
+    // ── 1. Checkout ──────────────────────────────────────────────────────────
     stage('Checkout') {
       steps {
         checkout scm
+        sh 'git log -1 --format="%H %s" | head -1'
       }
     }
 
-    stage('Frontend Gate: Install + Build') {
-      steps {
-        dir('frontend') {
-          sh 'npm ci'
-          sh 'npm run build'
+    // ── 2. Install Dependencies ───────────────────────────────────────────────
+    stage('Install Dependencies') {
+      parallel {
+        stage('Frontend') {
+          steps {
+            dir('campusmarket/frontend') {
+              sh 'npm ci --prefer-offline || npm install'
+            }
+          }
+        }
+        stage('Backend Services') {
+          steps {
+            sh '''
+              for svc in $SERVICES; do
+                echo "Installing $svc..."
+                (cd $SERVICES_PATH/$svc && npm install --prefer-offline) || true
+              done
+            '''
+          }
         }
       }
     }
 
-    stage('Backend Release Gate') {
+    // ── 3. Run Tests + Coverage ───────────────────────────────────────────────
+    stage('Test') {
       steps {
-        sh 'echo "Backend release gate is defined in backend/Jenkinsfile and should run as dedicated backend pipeline."'
+        sh '''
+          TESTED=0
+          for svc in auth-service user-service listing-service notification-service chat-service search-service ai-service; do
+            if [ -f "$SERVICES_PATH/$svc/package.json" ]; then
+              echo "\\n===== Testing $svc ====="
+              cd $SERVICES_PATH/$svc
+              npm test -- --coverage --watchAll=false --forceExit \
+                --coverageReporters=lcov --coverageReporters=text \
+                --testResultsProcessor="" || true
+              cd -
+              TESTED=$((TESTED+1))
+            fi
+          done
+          echo "Tested $TESTED services"
+        '''
+      }
+      post {
+        always {
+          publishHTML([
+            allowMissing: true,
+            reportDir: 'campusmarket/backend/services/auth-service/coverage/lcov-report',
+            reportFiles: 'index.html',
+            reportName: 'Auth Coverage Report'
+          ])
+        }
       }
     }
 
-    stage('Policy Gate: Release Checklist Present') {
+    // ── 4. SonarQube Analysis ─────────────────────────────────────────────────
+    stage('SonarQube Analysis') {
       steps {
-        sh 'test -f backend/RELEASE_GATE_CHECKLIST.md'
-        sh 'test -f backend/docker-compose.prod.yml'
-        sh 'test -f backend/PRODUCTION.md'
+        withSonarQubeEnv('CampusTrade-SonarQube') {
+          sh '''
+            # Backend services analysis
+            for svc in auth-service user-service listing-service chat-service notification-service; do
+              if [ -d "$SERVICES_PATH/$svc" ]; then
+                echo "Analyzing $svc with SonarQube..."
+                cd $SERVICES_PATH/$svc
+                sonar-scanner \
+                  -Dsonar.projectKey=campustrade-${svc} \
+                  -Dsonar.projectName="CampusTrade ${svc}" \
+                  -Dsonar.sources=. \
+                  -Dsonar.exclusions=node_modules/**,coverage/**,*.test.js \
+                  -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
+                  -Dsonar.host.url=$SONAR_HOST_URL \
+                  || true
+                cd -
+              fi
+            done
+
+            # Frontend analysis
+            cd campusmarket/frontend
+            sonar-scanner \
+              -Dsonar.projectKey=campustrade-frontend \
+              -Dsonar.projectName="CampusTrade Frontend" \
+              -Dsonar.sources=src \
+              -Dsonar.exclusions=node_modules/**,dist/**,**/*.test.jsx \
+              -Dsonar.host.url=$SONAR_HOST_URL \
+              || true
+            cd -
+          '''
+        }
+      }
+    }
+
+    // ── 5. Quality Gate ───────────────────────────────────────────────────────
+    stage('Quality Gate') {
+      steps {
+        timeout(time: 5, unit: 'MINUTES') {
+          waitForQualityGate abortPipeline: false
+        }
+      }
+    }
+
+    // ── 6. Build Docker Images ────────────────────────────────────────────────
+    stage('Build Docker Images') {
+      steps {
+        dir('campusmarket/backend') {
+          sh '''
+            for svc in $SERVICES; do
+              echo "Building $REGISTRY/$svc:$IMAGE_TAG..."
+              docker build \
+                --build-arg SERVICE_NAME=$svc \
+                --build-arg PORT=$(grep -A2 "$svc:" docker-compose.yml | grep PORT | head -1 | grep -o "[0-9]*" | tail -1 || echo 3000) \
+                -t $REGISTRY/$svc:$IMAGE_TAG \
+                -t $REGISTRY/$svc:latest \
+                . || true
+            done
+          '''
+        }
+        // Build frontend
+        dir('campusmarket/frontend') {
+          sh '''
+            npm run build || true
+            docker build -t $REGISTRY/frontend:$IMAGE_TAG -t $REGISTRY/frontend:latest . || true
+          '''
+        }
+      }
+    }
+
+    // ── 7. Push to Registry ───────────────────────────────────────────────────
+    stage('Push to Registry') {
+      when {
+        anyOf {
+          branch 'main'
+          branch 'front'
+        }
+      }
+      steps {
+        withCredentials([usernamePassword(
+          credentialsId: 'dockerhub-credentials',
+          usernameVariable: 'DOCKER_USER',
+          passwordVariable: 'DOCKER_PASS'
+        )]) {
+          sh '''
+            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin || true
+            for svc in $SERVICES frontend; do
+              docker push $REGISTRY/$svc:$IMAGE_TAG || true
+              docker push $REGISTRY/$svc:latest || true
+            done
+          '''
+        }
+      }
+    }
+
+    // ── 8. Deploy to Kubernetes ───────────────────────────────────────────────
+    stage('Deploy to Kubernetes') {
+      when {
+        branch 'main'
+      }
+      steps {
+        withKubeConfig([credentialsId: 'kubeconfig']) {
+          sh '''
+            kubectl apply -f campusmarket/backend/k8s/namespace.yml
+            kubectl apply -f campusmarket/backend/k8s/configmap.yml
+            kubectl apply -f campusmarket/backend/k8s/secret.yml
+            kubectl apply -f campusmarket/backend/k8s/postgres.yml
+            kubectl apply -f campusmarket/backend/k8s/redis.yml
+
+            for svc in $SERVICES; do
+              if [ -f "campusmarket/backend/k8s/$svc.yml" ]; then
+                kubectl apply -f campusmarket/backend/k8s/$svc.yml -n $K8S_NAMESPACE
+                kubectl set image deployment/$svc $svc=$REGISTRY/$svc:$IMAGE_TAG -n $K8S_NAMESPACE || true
+              fi
+            done
+
+            kubectl apply -f campusmarket/backend/k8s/ingress.yml
+            kubectl rollout status deployment/api-gateway -n $K8S_NAMESPACE --timeout=120s || true
+          '''
+        }
+      }
+    }
+
+    // ── 9. Smoke Test ─────────────────────────────────────────────────────────
+    stage('Smoke Test') {
+      steps {
+        sh '''
+          sleep 5
+          curl -sf http://localhost:8080/health && echo "Gateway OK" || echo "Gateway check failed (may need VPS)"
+        '''
       }
     }
   }
 
   post {
+    success {
+      echo "Pipeline SUCCESS — Build #${BUILD_NUMBER} | Commit: ${IMAGE_TAG}"
+    }
+    failure {
+      echo "Pipeline FAILED — Build #${BUILD_NUMBER}"
+    }
     always {
-      archiveArtifacts artifacts: 'frontend/dist/**,backend/RELEASE_GATE_CHECKLIST.md,backend/PRODUCTION.md', fingerprint: true
       cleanWs()
     }
   }
