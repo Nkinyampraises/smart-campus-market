@@ -7,12 +7,14 @@ version: '3.9'
 services:
 
   sonarqube:
-    image: sonarqube:10-community
+    image: sonarqube:lts-community
     container_name: campustrade-sonarqube
     restart: unless-stopped
     ports:
       - "9000:9000"
     environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: 'true'
+      SONAR_SEARCH_JAVAADDITIONALOPTS: '-Dnode.store.allow_mmap=false'
       SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/sonar
       SONAR_JDBC_USERNAME: sonar
       SONAR_JDBC_PASSWORD: sonar_pass
@@ -33,6 +35,8 @@ services:
     container_name: campustrade-sonar-db
     restart: unless-stopped
     environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: 'true'
+      SONAR_SEARCH_JAVAADDITIONALOPTS: '-Dnode.store.allow_mmap=false'
       POSTGRES_USER: sonar
       POSTGRES_PASSWORD: sonar_pass
       POSTGRES_DB: sonar
@@ -49,3 +53,4 @@ volumes:
   sonarqube_logs:
   sonarqube_extensions:
   sonar_db_data:
+
