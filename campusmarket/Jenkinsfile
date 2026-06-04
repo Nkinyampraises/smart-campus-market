@@ -8,7 +8,7 @@ pipeline {
   }
 
   environment {
-    REGISTRY        = 'campustrade'
+    REGISTRY        = 'praisesn'
     IMAGE_TAG       = "${env.GIT_COMMIT?.take(7) ?: 'latest'}"
     SERVICES_PATH   = 'campusmarket/backend/services'
     SONAR_HOST_URL  = 'http://host.docker.internal:9000'
