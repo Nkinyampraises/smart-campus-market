@@ -40,7 +40,7 @@ async function recordView(listingId, userIdOrIp) {
 // GET /api/listings — browse active listings
 app.get('/api/listings', asyncHandler(async (req, res) => {
   const { category, campus_zone, min_price, max_price, condition, mine, page = 1, limit = 20 } = req.query;
-  let query = "SELECT l.*, json_agg(li.image_url ORDER BY li.sort_order) FILTER (WHERE li.id IS NOT NULL) as image_urls FROM listings l LEFT JOIN listing_images li ON l.id=li.listing_id WHERE l.status=$1";
+  let query = "SELECT l.*, COALESCE(array_agg(li.image_url ORDER BY li.sort_order) FILTER (WHERE li.id IS NOT NULL), ARRAY[]::TEXT[]) as images FROM listings l LEFT JOIN listing_images li ON l.id=li.listing_id WHERE l.status=$1";
   const params = ['active'];
   let idx = 2;
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -79,7 +79,7 @@ app.get('/api/listings/:id', asyncHandler(async (req, res) => {
 
   const result = await pool.query(
     `SELECT l.*,
-      (SELECT json_agg(json_build_object('url', image_url, 'order', sort_order) ORDER BY sort_order) FROM listing_images WHERE listing_id=l.id) as images,
+      COALESCE((SELECT array_agg(image_url ORDER BY sort_order) FROM listing_images WHERE listing_id=l.id), ARRAY[]::TEXT[]) as images,
       u.first_name as seller_first, u.last_name as seller_last, u.rating as seller_rating, u.avatar_url as seller_avatar
      FROM listings l JOIN users u ON l.seller_id=u.id WHERE l.id=$1`, [id]
   );

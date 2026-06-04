@@ -18,6 +18,17 @@ const CONDITION_FACTORS = { new: 1.0, 'like new': 0.9, 'excellent condition': 0.
 let redis;
 let server;
 
+// Minimum reference prices per category (FCFA) — used when no sales data exists
+const CATEGORY_MIN_PRICES = {
+  Electronics:  50000,   // ~$80 — floor for any electronics
+  Textbooks:     3000,   // ~$5
+  Housing:      15000,   // ~$25
+  Clothing:      2000,   // ~$3
+  Accessories:   5000,   // ~$8
+  Services:      1000,   // ~$1.5
+  default:       2000,
+};
+
 collectDefaultMetrics();
 app.use(helmet());
 app.use(cors());
@@ -82,11 +93,14 @@ app.post('/api/ai/fraud-check', asyncHandler(async (req, res) => {
   const { avg } = await getCategoryAvgPrice(category);
   const flags = [];
 
-  // Rule 1: Price < 30% of category average
-  if (avg > 0 && price_fcfa < avg * 0.30) {
+  // Use transaction average OR hardcoded market minimum — whichever is higher
+  const refPrice = Math.max(avg || 0, CATEGORY_MIN_PRICES[category] || CATEGORY_MIN_PRICES.default);
+
+  // Rule 1: Price < 30% of reference price
+  if (price_fcfa < refPrice * 0.30) {
     flags.push({
       type: EVENT_TYPES.LOW_PRICE_FLAG,
-      rule: `Price ${Math.round((price_fcfa / avg) * 100)}% below 90-day category average`,
+      rule: `Price ${Math.round((price_fcfa / refPrice) * 100)}% below market reference for ${category} (ref: ${refPrice.toLocaleString()} FCFA)`,
       listingId, sellerId
     });
   }
@@ -194,10 +208,11 @@ async function setupEventHandlers() {
     if (event.type === EVENT_TYPES.LISTING_CREATED) {
       try {
         const { avg } = await getCategoryAvgPrice(event.category);
-        if (avg > 0 && event.price_fcfa < avg * 0.30) {
+        const refPrice = Math.max(avg || 0, CATEGORY_MIN_PRICES[event.category] || CATEGORY_MIN_PRICES.default);
+        if (event.price_fcfa < refPrice * 0.30) {
           await publishEvent(EVENT_CHANNELS.AUDIT, {
             type: EVENT_TYPES.LOW_PRICE_FLAG,
-            rule: `Price ${Math.round((event.price_fcfa / avg) * 100)}% below 90-day category average`,
+            rule: `Price ${Math.round((event.price_fcfa / refPrice) * 100)}% below market reference for ${event.category} (ref: ${refPrice.toLocaleString()} FCFA)`,
             listingId: event.listingId,
             sellerId: event.sellerId
           });
