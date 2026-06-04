@@ -66,6 +66,8 @@ pipeline {
         always {
           publishHTML([
             allowMissing: true,
+            alwaysLinkToLastBuild: true,
+            keepAll: true,
             reportDir: 'campusmarket/backend/services/auth-service/coverage/lcov-report',
             reportFiles: 'index.html',
             reportName: 'Coverage Report'
