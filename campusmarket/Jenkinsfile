@@ -8,12 +8,12 @@ pipeline {
   }
 
   environment {
-    REGISTRY        = 'praisesn'
-    IMAGE_TAG       = "${env.GIT_COMMIT?.take(7) ?: 'latest'}"
-    SERVICES_PATH   = 'campusmarket/backend/services'
-    SONAR_HOST_URL  = 'http://host.docker.internal:9000'
-    K8S_NAMESPACE   = 'campustrade'
-    SERVICES        = 'auth-service user-service listing-service chat-service admin-service ai-service search-service notification-service api-gateway'
+    REGISTRY       = 'praisesn'
+    IMAGE_TAG      = "${env.GIT_COMMIT?.take(7) ?: 'latest'}"
+    SERVICES_PATH  = 'campusmarket/backend/services'
+    SONAR_HOST_URL = 'http://host.docker.internal:9000'
+    K8S_NAMESPACE  = 'campustrade'
+    SERVICES       = 'auth-service user-service listing-service chat-service admin-service ai-service search-service notification-service api-gateway'
   }
 
   stages {
@@ -23,6 +23,7 @@ pipeline {
       steps {
         checkout scm
         sh 'git log -1 --format="%H %s"'
+        sh 'ls campusmarket/'
       }
     }
 
@@ -31,17 +32,18 @@ pipeline {
       parallel {
         stage('Frontend') {
           steps {
-            dir('campusmarket/frontend') {
-              sh 'npm install --prefer-offline || npm install'
-            }
+            sh 'cd campusmarket/frontend && npm install --prefer-offline 2>/dev/null || npm install'
           }
         }
         stage('Backend Services') {
           steps {
             sh '''
               for svc in $SERVICES; do
-                echo "-- Installing $svc"
-                (cd $SERVICES_PATH/$svc && npm install --prefer-offline) || true
+                SVC_PATH="$SERVICES_PATH/$svc"
+                if [ -d "$SVC_PATH" ]; then
+                  echo "-- Installing $svc"
+                  (cd "$SVC_PATH" && npm install --prefer-offline 2>/dev/null || npm install) || true
+                fi
               done
             '''
           }
@@ -49,29 +51,46 @@ pipeline {
       }
     }
 
-    // ── 3. Run Tests + Coverage ───────────────────────────────────────────────
+    // ── 3. Run Tests ──────────────────────────────────────────────────────────
     stage('Test') {
       steps {
         sh '''
-          for svc in auth-service user-service listing-service notification-service chat-service search-service ai-service; do
-            if [ -f "$SERVICES_PATH/$svc/package.json" ]; then
+          PASSED=0
+          FAILED=0
+          for svc in auth-service user-service listing-service notification-service chat-service search-service ai-service admin-service; do
+            SVC_PATH="$SERVICES_PATH/$svc"
+            if [ -d "$SVC_PATH" ] && grep -q '"test"' "$SVC_PATH/package.json" 2>/dev/null; then
               echo "===== Testing $svc ====="
-              (cd $SERVICES_PATH/$svc && npm test -- --coverage --watchAll=false --forceExit \
-                --coverageReporters=lcov --coverageReporters=text-summary 2>&1) || true
+              if (cd "$SVC_PATH" && npm test -- --coverage --watchAll=false --forceExit \
+                  --coverageReporters=lcov --coverageReporters=text-summary \
+                  --passWithNoTests 2>&1); then
+                echo "PASSED: $svc"
+                PASSED=$((PASSED+1))
+              else
+                echo "FAILED: $svc (continuing...)"
+                FAILED=$((FAILED+1))
+              fi
             fi
           done
+          echo "Results: $PASSED passed, $FAILED failed"
         '''
       }
       post {
         always {
-          publishHTML([
-            allowMissing: true,
-            alwaysLinkToLastBuild: true,
-            keepAll: true,
-            reportDir: 'campusmarket/backend/services/auth-service/coverage/lcov-report',
-            reportFiles: 'index.html',
-            reportName: 'Coverage Report'
-          ])
+          script {
+            try {
+              publishHTML([
+                allowMissing: true,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'campusmarket/backend/services/auth-service/coverage/lcov-report',
+                reportFiles: 'index.html',
+                reportName: 'Test Coverage Report'
+              ])
+            } catch(e) {
+              echo "Coverage report not available: ${e.message}"
+            }
+          }
         }
       }
     }
@@ -80,26 +99,20 @@ pipeline {
     stage('SonarQube Analysis') {
       steps {
         script {
-          // Get token from Jenkins credentials if configured
           def sonarToken = ''
           try {
-            withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TKN')]) {
-              sonarToken = env.SONAR_TKN
+            withCredentials([string(credentialsId: 'sonarqube-token', variable: 'TKN')]) {
+              sonarToken = env.TKN
             }
-          } catch(e) {
-            echo "SonarQube token not configured in Jenkins yet - running without auth"
-          }
+          } catch(e) { echo "No sonarqube-token credential" }
 
           def tokenFlag = sonarToken ? "-Dsonar.token=${sonarToken}" : ""
 
           sh """
-            which sonar-scanner || { echo "sonar-scanner not found, skipping SonarQube"; exit 0; }
+            which sonar-scanner 2>/dev/null || { echo "sonar-scanner not found, skipping"; exit 0; }
+            curl -sf ${SONAR_HOST_URL}/api/system/status 2>/dev/null | grep -q '"status":"UP"' || { echo "SonarQube not ready, skipping"; exit 0; }
 
-            # Check SonarQube is reachable
-            curl -sf ${SONAR_HOST_URL}/api/system/status 2>/dev/null || { echo "SonarQube not reachable at ${SONAR_HOST_URL}, skipping"; exit 0; }
-
-            echo "SonarQube is UP — running analysis..."
-
+            echo "SonarQube is UP - running analysis..."
             for svc in auth-service user-service listing-service notification-service chat-service; do
               if [ -d "$SERVICES_PATH/\$svc" ]; then
                 echo "=== Scanning \$svc ==="
@@ -111,11 +124,11 @@ pipeline {
                   -Dsonar.exclusions="node_modules/**,coverage/**,**/*.test.js" \\
                   -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \\
                   -Dsonar.host.url=${SONAR_HOST_URL} \\
-                  ${tokenFlag}) || true
+                  ${tokenFlag} 2>&1 | tail -5) || echo "Skipped: \$svc"
               fi
             done
 
-            # Frontend
+            echo "=== Scanning frontend ==="
             (cd campusmarket/frontend && sonar-scanner \\
               -Dsonar.projectKey=campustrade-frontend \\
               -Dsonar.projectName="CampusTrade Frontend" \\
@@ -123,7 +136,7 @@ pipeline {
               -Dsonar.sources=src \\
               -Dsonar.exclusions="node_modules/**,dist/**,**/*.test.jsx" \\
               -Dsonar.host.url=${SONAR_HOST_URL} \\
-              ${tokenFlag}) || true
+              ${tokenFlag} 2>&1 | tail -5) || echo "Frontend scan skipped"
           """
         }
       }
@@ -137,8 +150,8 @@ pipeline {
             timeout(time: 3, unit: 'MINUTES') {
               waitForQualityGate abortPipeline: false
             }
-          } catch (e) {
-            echo "Quality gate skipped: ${e.message}"
+          } catch(e) {
+            echo "Quality gate: ${e.message}"
           }
         }
       }
@@ -147,64 +160,80 @@ pipeline {
     // ── 6. Build Docker Images ────────────────────────────────────────────────
     stage('Build Docker Images') {
       steps {
-        dir('campusmarket/backend') {
-          sh '''
-            for svc in $SERVICES; do
-              echo "Building campustrade/$svc:$IMAGE_TAG"
-              docker build \
-                --build-arg SERVICE_NAME=$svc \
-                -t campustrade/$svc:$IMAGE_TAG \
-                -t campustrade/$svc:latest \
-                . && echo "OK: $svc" || echo "SKIP: $svc"
-            done
-          '''
-        }
-        dir('campusmarket/frontend') {
-          sh '''
-            npm run build || true
-          '''
+        script {
+          def built = 0
+          dir('campusmarket/backend') {
+            for (svc in env.SERVICES.split(' ')) {
+              sh """
+                echo "Building ${REGISTRY}/${svc}:${IMAGE_TAG}"
+                docker build --build-arg SERVICE_NAME=${svc} \\
+                  -t ${REGISTRY}/${svc}:${IMAGE_TAG} \\
+                  -t ${REGISTRY}/${svc}:latest . && echo "OK: ${svc}" || echo "SKIP: ${svc}"
+              """
+            }
+          }
         }
       }
     }
 
-    // ── 7. Deploy to Kubernetes ───────────────────────────────────────────────
+    // ── 7. Push to Docker Hub ─────────────────────────────────────────────────
+    stage('Push to Registry') {
+      steps {
+        script {
+          try {
+            withCredentials([usernamePassword(
+              credentialsId: 'dockerhub-credentials',
+              usernameVariable: 'DOCKER_USER',
+              passwordVariable: 'DOCKER_PASS'
+            )]) {
+              sh '''
+                echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                for svc in $SERVICES; do
+                  docker push $REGISTRY/$svc:latest 2>&1 | tail -2 || echo "Push skipped: $svc"
+                done
+                docker logout
+              '''
+            }
+          } catch(e) {
+            echo "Push to registry: ${e.message}"
+          }
+        }
+      }
+    }
+
+    // ── 8. Deploy to Kubernetes ───────────────────────────────────────────────
     stage('Deploy to Kubernetes') {
       steps {
         sh '''
-          # Check kubectl
-          kubectl version --client 2>/dev/null || { echo "kubectl not found, skipping K8s deploy"; exit 0; }
+          kubectl version --client 2>/dev/null || { echo "kubectl not available"; exit 0; }
+          kubectl cluster-info 2>/dev/null || { echo "K8s cluster not reachable from CI"; exit 0; }
 
-          # Check cluster connection
-          kubectl cluster-info 2>/dev/null || { echo "No K8s cluster, skipping deploy"; exit 0; }
-
-          echo "Deploying to Kubernetes..."
-
+          echo "=== Deploying to Kubernetes ==="
           kubectl apply -f campusmarket/backend/k8s/namespace.yml || true
           kubectl apply -f campusmarket/backend/k8s/configmap.yml || true
           kubectl apply -f campusmarket/backend/k8s/secret.yml    || true
-          kubectl apply -f campusmarket/backend/k8s/postgres.yml  || true
           kubectl apply -f campusmarket/backend/k8s/redis.yml     || true
+          kubectl apply -f campusmarket/backend/k8s/postgres.yml  || true
 
           for svc in $SERVICES; do
-            if [ -f "campusmarket/backend/k8s/$svc.yml" ]; then
-              kubectl apply -f campusmarket/backend/k8s/$svc.yml -n $K8S_NAMESPACE || true
-              kubectl set image deployment/$svc $svc=campustrade/$svc:$IMAGE_TAG -n $K8S_NAMESPACE 2>/dev/null || true
-            fi
+            [ -f "campusmarket/backend/k8s/$svc.yml" ] && \
+              kubectl apply -f "campusmarket/backend/k8s/$svc.yml" -n $K8S_NAMESPACE || true
           done
 
           kubectl apply -f campusmarket/backend/k8s/ingress.yml -n $K8S_NAMESPACE || true
-
-          echo "Kubernetes deployment complete"
+          echo "=== K8s status ==="
           kubectl get pods -n $K8S_NAMESPACE 2>/dev/null || true
         '''
       }
     }
 
-    // ── 8. Smoke Test ─────────────────────────────────────────────────────────
+    // ── 9. Smoke Test ─────────────────────────────────────────────────────────
     stage('Smoke Test') {
       steps {
         sh '''
-          curl -sf http://localhost:8080/health && echo "Gateway: OK" || echo "Gateway: not reachable from CI"
+          echo "=== Smoke Test ==="
+          curl -sf http://localhost:8080/health 2>/dev/null && echo "API Gateway: OK" || echo "API Gateway: not reachable from CI agent"
+          kubectl get pods -n campustrade 2>/dev/null | grep -v "0/1" | grep Running | wc -l | xargs echo "Running pods:"
         '''
       }
     }
@@ -212,10 +241,10 @@ pipeline {
 
   post {
     success {
-      echo "SUCCESS — Build #${BUILD_NUMBER} | ${IMAGE_TAG}"
+      echo "PIPELINE SUCCESS - Build #${BUILD_NUMBER} | ${IMAGE_TAG}"
     }
     failure {
-      echo "FAILED — Build #${BUILD_NUMBER}"
+      echo "PIPELINE FAILED - Build #${BUILD_NUMBER}"
     }
     always {
       cleanWs()
