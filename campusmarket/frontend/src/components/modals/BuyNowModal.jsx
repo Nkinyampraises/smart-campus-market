@@ -6,15 +6,17 @@ import { formatFCFA } from '../../utils/format';
 import { api } from '../../services/api';
 
 const campusZones = [
-  'Engineering Block',
-  'Science Block',
-  'Arts Block',
-  'Main Dorms',
-  'Student Union',
-  'Medical Block',
-  'Main Campus Library',
-  'South Campus Quad',
-  'North Campus Gate',
+  'Canteen',
+  'Chumbuw Hall',
+  'Eric Mbarika',
+  'George Mbarika',
+  'Pondi Hall',
+  'Linda Terry Hall',
+  'IT Hall',
+  'Chapel',
+  'French Hall',
+  'Cisco Lab',
+  'Computer Lab',
 ];
 
 const BuyNowModal = ({ listing, onClose }) => {

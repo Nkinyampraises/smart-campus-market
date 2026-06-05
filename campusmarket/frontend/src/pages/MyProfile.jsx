@@ -6,7 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
 import { formatFCFA } from '../utils/format';
 
-const ZONES = ['Engineering Block', 'Science Block', 'Arts Block', 'Main Dorms', 'Student Union', 'Medical Block'];
+const ZONES = ['Canteen', 'Chumbuw Hall', 'Eric Mbarika', 'George Mbarika', 'Pondi Hall', 'Linda Terry Hall', 'IT Hall', 'Chapel', 'French Hall', 'Cisco Lab', 'Computer Lab'];
 
 const MyProfile = () => {
   const { user, updateUser } = useAuth();

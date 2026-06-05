@@ -7,12 +7,17 @@ import { api } from '../services/api';
 const CATEGORIES = ['Electronics', 'Clothing', 'Services', 'Accessories', 'Cosmetics', 'Perfumes', 'Bracelets', 'Fruit Salad', 'Juice', 'Pancake/Cake', 'Shawarma', 'Shoes', 'Liquid Soap'];
 const CONDITIONS = ['New / Unopened', 'Excellent Condition', 'Good Condition', 'Used', 'For Parts'];
 const CAMPUS_ZONES = [
-  { id: 'engineering', label: 'Engineering Block', icon: 'engineering' },
-  { id: 'main-library', label: 'Main Library', icon: 'local_library' },
-  { id: 'dining-hall', label: 'Dining Hall', icon: 'restaurant' },
-  { id: 'student-union', label: 'Student Union', icon: 'groups' },
-  { id: 'rec-center', label: 'Rec Center', icon: 'sports_soccer' },
-  { id: 'dorm-area', label: 'Dorm Area', icon: 'home' },
+  { id: 'canteen',        label: 'Canteen',          icon: 'restaurant'       },
+  { id: 'chumbuw-hall',   label: 'Chumbuw Hall',     icon: 'meeting_room'     },
+  { id: 'eric-mbarika',   label: 'Eric Mbarika',     icon: 'school'           },
+  { id: 'george-mbarika', label: 'George Mbarika',   icon: 'school'           },
+  { id: 'pondi-hall',     label: 'Pondi Hall',       icon: 'apartment'        },
+  { id: 'linda-terry',    label: 'Linda Terry Hall', icon: 'meeting_room'     },
+  { id: 'it-hall',        label: 'IT Hall',          icon: 'computer'         },
+  { id: 'chapel',         label: 'Chapel',           icon: 'church'           },
+  { id: 'french-hall',    label: 'French Hall',      icon: 'translate'        },
+  { id: 'cisco-lab',      label: 'Cisco Lab',        icon: 'router'           },
+  { id: 'computer-lab',   label: 'Computer Lab',     icon: 'desktop_windows'  },
 ];
 
 const PRICE_SUGGESTIONS = {

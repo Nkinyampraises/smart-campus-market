@@ -5,12 +5,17 @@ import { useToast } from '../context/ToastContext';
 import AuthNavbar from '../components/AuthNavbar';
 
 const zones = [
-  'Engineering Block',
-  'Science Block',
-  'Arts Block',
-  'Main Dorms',
-  'Student Union',
-  'Medical Block',
+  'Canteen',
+  'Chumbuw Hall',
+  'Eric Mbarika',
+  'George Mbarika',
+  'Pondi Hall',
+  'Linda Terry Hall',
+  'IT Hall',
+  'Chapel',
+  'French Hall',
+  'Cisco Lab',
+  'Computer Lab',
 ];
 
 const getPasswordStrength = (pwd) => {
