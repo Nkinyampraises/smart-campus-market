@@ -133,7 +133,7 @@ const Login = () => {
                 <span className="material-symbols-outlined text-lg">arrow_forward</span>
               </button>
 
-              {/* Divider */}
+              {/* Google OAuth — requires registered domain; disabled on IP-based deployment */}
               <div className="relative flex py-4 items-center">
                 <div className="flex-grow border-t border-[#e2bfb2]"></div>
                 <span className="flex-shrink mx-4 font-[Manrope] text-[12px] font-bold tracking-wider text-[#5c5f60] uppercase">
@@ -141,26 +141,20 @@ const Login = () => {
                 </span>
                 <div className="flex-grow border-t border-[#e2bfb2]"></div>
               </div>
-
-              {/* Google Login — official button with real ID token */}
-              <div className="flex justify-center">
-                {googleLoading ? (
-                  <div className="flex items-center gap-2 text-gray-500 text-[14px]">
-                    <span className="w-5 h-5 border-2 border-gray-400 border-t-gray-700 rounded-full animate-spin" />
-                    Signing in with Google…
-                  </div>
-                ) : (
-                  <GoogleLogin
-                    onSuccess={onGoogleSuccess}
-                    onError={() => showToast('Google login failed. Try again.', 'error')}
-                    width="380"
-                    theme="outline"
-                    size="large"
-                    text="continue_with"
-                    shape="rectangular"
-                  />
-                )}
-              </div>
+              <button
+                type="button"
+                disabled
+                className="w-full flex items-center justify-center gap-3 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-400 text-[14px] cursor-not-allowed"
+                title="Google Sign-In requires a registered domain name. Available when deployed with a domain."
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#ccc"/>
+                  <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#ccc"/>
+                  <path d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" fill="#ccc"/>
+                  <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z" fill="#ccc"/>
+                </svg>
+                Continue with Google (requires domain)
+              </button>
             </form>
 
             <p className="mt-6 text-center text-[14px] text-gray-500">
