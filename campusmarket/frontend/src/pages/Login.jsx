@@ -133,7 +133,34 @@ const Login = () => {
                 <span className="material-symbols-outlined text-lg">arrow_forward</span>
               </button>
 
-              {/* Google OAuth implemented in backend — requires verified domain to display */}
+              {/* Divider */}
+              <div className="relative flex py-4 items-center">
+                <div className="flex-grow border-t border-[#e2bfb2]"></div>
+                <span className="flex-shrink mx-4 font-[Manrope] text-[12px] font-bold tracking-wider text-[#5c5f60] uppercase">
+                  Or continue with
+                </span>
+                <div className="flex-grow border-t border-[#e2bfb2]"></div>
+              </div>
+
+              {/* Google Login */}
+              <div className="flex justify-center">
+                {googleLoading ? (
+                  <div className="flex items-center gap-2 text-gray-500 text-[14px]">
+                    <span className="w-5 h-5 border-2 border-gray-400 border-t-gray-700 rounded-full animate-spin" />
+                    Signing in with Google…
+                  </div>
+                ) : (
+                  <GoogleLogin
+                    onSuccess={onGoogleSuccess}
+                    onError={() => showToast('Google login failed. Try again.', 'error')}
+                    width="380"
+                    theme="outline"
+                    size="large"
+                    text="continue_with"
+                    shape="rectangular"
+                  />
+                )}
+              </div>
             </form>
 
             <p className="mt-6 text-center text-[14px] text-gray-500">
