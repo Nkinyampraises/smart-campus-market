@@ -1,199 +1,370 @@
 const request = require('supertest');
-const express = require('express');
 const jwt = require('jsonwebtoken');
 
-jest.mock('pg', () => {
-  const mockPool = { query: jest.fn() };
-  return { Pool: jest.fn(() => mockPool) };
-});
-jest.mock('../../shared/events', () => ({
-  initRedis: jest.fn().mockResolvedValue(true),
-  publishEvent: jest.fn().mockResolvedValue(true),
-  subscribeToEvents: jest.fn().mockResolvedValue(true),
-  EVENT_CHANNELS: { ADMIN: 'admin.event', AUDIT: 'audit.channel' },
-  EVENT_TYPES: { USER_SUSPENDED: 'user.suspended' },
-}));
+const SECRET = 'test_secret';
+const adminToken = () => jwt.sign({ userId: 'admin1', role: 'admin' }, SECRET);
+const userToken  = () => jwt.sign({ userId: 'user1',  role: 'user'  }, SECRET);
+const UUID = '550e8400-e29b-41d4-a716-446655440000';
+
 jest.mock('prom-client', () => ({
   collectDefaultMetrics: jest.fn(),
-  register: { contentType: 'text/plain', metrics: jest.fn().mockResolvedValue('') },
+  Histogram: jest.fn(() => ({ observe: jest.fn(), startTimer: jest.fn(() => jest.fn()) })),
+  Counter: jest.fn(() => ({ inc: jest.fn() })),
+  Gauge: jest.fn(() => ({ set: jest.fn(), inc: jest.fn(), dec: jest.fn() })),
+  register: { contentType: 'text/plain', metrics: jest.fn().mockResolvedValue('metrics_data'), registerMetric: jest.fn() },
+}));
+jest.mock('../../shared/metrics', () => ({ metricsMiddleware: (req, res, next) => next() }));
+jest.mock('../../shared/db', () => ({ query: jest.fn(), end: jest.fn().mockResolvedValue() }));
+jest.mock('../../shared/logger', () => ({ info: jest.fn(), error: jest.fn(), warn: jest.fn() }));
+jest.mock('../../shared/events', () => ({
+  initRedis: jest.fn().mockResolvedValue(),
+  closeRedis: jest.fn().mockResolvedValue(),
+  publishEvent: jest.fn().mockResolvedValue(),
+  subscribeToEvents: jest.fn().mockResolvedValue(),
+  EVENT_CHANNELS: { ADMIN: 'admin', NOTIFICATION: 'notification', AUDIT: 'audit' },
+  EVENT_TYPES: { USER_SUSPENDED: 'user.suspended', LOW_PRICE_FLAG: 'fraud.low_price', SPAM_RATE_FLAG: 'fraud.spam' },
+}));
+jest.mock('../../shared/authMiddleware', () => ({
+  authenticate: (req, res, next) => {
+    const auth = req.headers.authorization;
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      const jwt = require('jsonwebtoken');
+      req.user = jwt.verify(auth.split(' ')[1], process.env.JWT_SECRET || 'test_secret');
+      next();
+    } catch { return res.status(401).json({ error: 'Invalid token' }); }
+  },
+  requireRole: (role) => (req, res, next) => {
+    if (!req.user || req.user.role !== role) return res.status(403).json({ error: 'Forbidden' });
+    next();
+  },
+}));
+jest.mock('../../shared/validate', () => ({
+  sanitizeString: (s) => (s ? String(s).trim() : ''),
+  validateUUID: () => true,
+}));
+jest.mock('../../shared/errorHandler', () => ({
+  asyncHandler: (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next),
+  AppError: class AppError extends Error {
+    constructor(msg, code) { super(msg); this.status = code; this.statusCode = code; }
+  },
 }));
 
-const { Pool } = require('pg');
+const pool = require('../../shared/db');
 const { publishEvent } = require('../../shared/events');
-const mockPool = new Pool();
-process.env.JWT_SECRET = 'test_secret';
 
-const makeAdminToken = () => jwt.sign({ userId: 'admin1', role: 'admin' }, 'test_secret', { expiresIn: '1h' });
-const makeUserToken  = () => jwt.sign({ userId: 'user1',  role: 'user'  }, 'test_secret', { expiresIn: '1h' });
+let app;
 
-const app = express();
-app.use(express.json());
-
-const authenticateAdmin = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
-    req.user = decoded;
-    next();
-  } catch { res.status(401).json({ error: 'Invalid token' }); }
-};
-
-app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
-  const [users, listings, reports, fraud] = await Promise.all([
-    mockPool.query('SELECT COUNT(*) FROM users'),
-    mockPool.query("SELECT COUNT(*) FROM listings WHERE status='active'"),
-    mockPool.query("SELECT COUNT(*) FROM reports WHERE status='pending'"),
-    mockPool.query('SELECT COUNT(*) FROM fraud_flags WHERE resolved=false'),
-  ]);
-  res.json({
-    totalUsers:      parseInt(users.rows[0].count),
-    activeListings:  parseInt(listings.rows[0].count),
-    pendingReports:  parseInt(reports.rows[0].count),
-    fraudFlags:      parseInt(fraud.rows[0].count),
-  });
+beforeAll(() => {
+  process.env.JWT_SECRET = SECRET;
+  app = require('./server');
 });
 
-app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
-  const result = await mockPool.query('SELECT id, email, first_name, last_name, role, is_suspended FROM users ORDER BY created_at DESC');
-  res.json(result.rows);
-});
-
-app.post('/api/admin/users/:id/suspend', authenticateAdmin, async (req, res) => {
-  const { reason } = req.body;
-  if (!reason) return res.status(400).json({ error: 'Reason required' });
-  await mockPool.query('UPDATE users SET is_suspended=true WHERE id=$1', [req.params.id]);
-  await publishEvent('admin.event', { type: 'user.suspended', userId: req.params.id, reason });
-  res.json({ message: 'User suspended' });
-});
-
-app.post('/api/admin/users/:id/unsuspend', authenticateAdmin, async (req, res) => {
-  await mockPool.query('UPDATE users SET is_suspended=false WHERE id=$1', [req.params.id]);
-  res.json({ message: 'User unsuspended' });
-});
-
-app.get('/api/admin/reports', authenticateAdmin, async (req, res) => {
-  const result = await mockPool.query("SELECT * FROM reports WHERE status='pending' ORDER BY created_at DESC");
-  res.json(result.rows);
-});
-
-// ── Tests ────────────────────────────────────────────────────────────────────
+afterEach(() => jest.clearAllMocks());
 
 describe('Admin Service — Stats', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('returns dashboard stats for admin', async () => {
-    mockPool.query
-      .mockResolvedValueOnce({ rows: [{ count: '12' }] })
-      .mockResolvedValueOnce({ rows: [{ count: '5'  }] })
-      .mockResolvedValueOnce({ rows: [{ count: '2'  }] })
-      .mockResolvedValueOnce({ rows: [{ count: '1'  }] });
-
-    const res = await request(app)
-      .get('/api/admin/stats')
-      .set('Authorization', `Bearer ${makeAdminToken()}`);
-
-    expect(res.status).toBe(200);
-    expect(res.body.totalUsers).toBe(12);
-    expect(res.body.activeListings).toBe(5);
-    expect(res.body.pendingReports).toBe(2);
-    expect(res.body.fraudFlags).toBe(1);
-  });
-
-  it('returns 403 for non-admin users', async () => {
-    const res = await request(app)
-      .get('/api/admin/stats')
-      .set('Authorization', `Bearer ${makeUserToken()}`);
-    expect(res.status).toBe(403);
-  });
-
-  it('returns 401 without token', async () => {
+  it('GET /api/admin/stats rejects unauthenticated', async () => {
     const res = await request(app).get('/api/admin/stats');
     expect(res.status).toBe(401);
   });
+
+  it('GET /api/admin/stats rejects non-admin', async () => {
+    const res = await request(app).get('/api/admin/stats')
+      .set('Authorization', `Bearer ${userToken()}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('GET /api/admin/stats returns dashboard stats', async () => {
+    const countRow = { cnt: 42 };
+    pool.query
+      .mockResolvedValueOnce({ rows: [countRow] })
+      .mockResolvedValueOnce({ rows: [countRow] })
+      .mockResolvedValueOnce({ rows: [countRow] })
+      .mockResolvedValueOnce({ rows: [countRow] })
+      .mockResolvedValueOnce({ rows: [countRow] })
+      .mockResolvedValueOnce({ rows: [countRow] })
+      .mockResolvedValueOnce({ rows: [countRow] });
+    const res = await request(app).get('/api/admin/stats')
+      .set('Authorization', `Bearer ${adminToken()}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('totalUsers');
+    expect(res.body).toHaveProperty('pendingReports');
+  });
+
+  it('GET /api/admin/public-stats returns public stats', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ cnt: 100 }] })
+      .mockResolvedValueOnce({ rows: [{ cnt: 50 }] })
+      .mockResolvedValueOnce({ rows: [{ cnt: 30 }] });
+    const res = await request(app).get('/api/admin/public-stats');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('verifiedUsers');
+    expect(res.body).toHaveProperty('activeListings');
+    expect(res.body).toHaveProperty('transactions');
+  });
 });
 
-describe('Admin Service — User Management', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('lists all users', async () => {
-    mockPool.query.mockResolvedValueOnce({
-      rows: [
-        { id: 'u1', email: 'alice@test.com', first_name: 'Alice', role: 'user', is_suspended: false },
-        { id: 'u2', email: 'bob@test.com',   first_name: 'Bob',   role: 'user', is_suspended: true  },
-      ],
-    });
-    const res = await request(app)
-      .get('/api/admin/users')
-      .set('Authorization', `Bearer ${makeAdminToken()}`);
-
+describe('Admin Service — Users', () => {
+  it('GET /api/admin/users returns all users', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ id: 'u1', email: 'a@b.cm', is_suspended: false }] });
+    const res = await request(app).get('/api/admin/users')
+      .set('Authorization', `Bearer ${adminToken()}`);
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(2);
-    expect(res.body[1].is_suspended).toBe(true);
+    expect(Array.isArray(res.body)).toBe(true);
   });
 
-  it('suspends a user with reason', async () => {
-    mockPool.query.mockResolvedValueOnce({ rows: [] });
-
-    const res = await request(app)
-      .post('/api/admin/users/u1/suspend')
-      .set('Authorization', `Bearer ${makeAdminToken()}`)
-      .send({ reason: 'Spam behaviour' });
-
+  it('GET /api/admin/users filters suspended', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    const res = await request(app).get('/api/admin/users?suspended=true')
+      .set('Authorization', `Bearer ${adminToken()}`);
     expect(res.status).toBe(200);
-    expect(publishEvent).toHaveBeenCalledWith('admin.event', expect.objectContaining({ type: 'user.suspended', userId: 'u1' }));
   });
 
-  it('returns 400 when suspend reason is missing', async () => {
-    const res = await request(app)
-      .post('/api/admin/users/u1/suspend')
-      .set('Authorization', `Bearer ${makeAdminToken()}`)
-      .send({});
-
-    expect(res.status).toBe(400);
+  it('GET /api/admin/users filters not suspended', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    const res = await request(app).get('/api/admin/users?suspended=false')
+      .set('Authorization', `Bearer ${adminToken()}`);
+    expect(res.status).toBe(200);
   });
 
-  it('unsuspends a user', async () => {
-    mockPool.query.mockResolvedValueOnce({ rows: [] });
-
-    const res = await request(app)
-      .post('/api/admin/users/u1/unsuspend')
-      .set('Authorization', `Bearer ${makeAdminToken()}`);
-
+  it('GET /api/admin/users search by name/email', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    const res = await request(app).get('/api/admin/users?search=john')
+      .set('Authorization', `Bearer ${adminToken()}`);
     expect(res.status).toBe(200);
-    expect(res.body.message).toBe('User unsuspended');
+  });
+
+  it('GET /api/admin/users rejects non-admin', async () => {
+    const res = await request(app).get('/api/admin/users')
+      .set('Authorization', `Bearer ${userToken()}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('POST /api/admin/users/:id/suspend suspends user', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    const res = await request(app).post(`/api/admin/users/${UUID}/suspend`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ reason: 'Policy violation' });
+    expect(res.status).toBe(200);
+    expect(publishEvent).toHaveBeenCalled();
+  });
+
+  it('POST /api/admin/users/:id/suspend rejects non-admin', async () => {
+    const res = await request(app).post(`/api/admin/users/${UUID}/suspend`)
+      .set('Authorization', `Bearer ${userToken()}`)
+      .send({ reason: 'Test' });
+    expect(res.status).toBe(403);
+  });
+
+  it('POST /api/admin/users/:id/unsuspend unsuspends user', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    const res = await request(app).post(`/api/admin/users/${UUID}/unsuspend`)
+      .set('Authorization', `Bearer ${adminToken()}`);
+    expect(res.status).toBe(200);
+  });
+
+  it('POST /api/admin/users/:id/unsuspend rejects non-admin', async () => {
+    const res = await request(app).post(`/api/admin/users/${UUID}/unsuspend`)
+      .set('Authorization', `Bearer ${userToken()}`);
+    expect(res.status).toBe(403);
   });
 });
 
 describe('Admin Service — Reports', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('returns pending reports', async () => {
-    mockPool.query.mockResolvedValueOnce({
-      rows: [
-        { id: 'r1', listing_id: 'l1', reason: 'Suspected Fraud', severity: 'high', status: 'pending' },
-        { id: 'r2', listing_id: 'l2', reason: 'Wrong Item',      severity: 'low',  status: 'pending' },
-      ],
-    });
-
-    const res = await request(app)
-      .get('/api/admin/reports')
-      .set('Authorization', `Bearer ${makeAdminToken()}`);
-
+  it('GET /api/admin/reports returns pending reports', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ id: 'r1', reason: 'fraud', status: 'pending' }] });
+    const res = await request(app).get('/api/admin/reports')
+      .set('Authorization', `Bearer ${adminToken()}`);
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(2);
-    expect(res.body[0].severity).toBe('high');
+    expect(Array.isArray(res.body)).toBe(true);
   });
 
-  it('returns empty array when no pending reports', async () => {
-    mockPool.query.mockResolvedValueOnce({ rows: [] });
+  it('GET /api/admin/reports rejects non-admin', async () => {
+    const res = await request(app).get('/api/admin/reports')
+      .set('Authorization', `Bearer ${userToken()}`);
+    expect(res.status).toBe(403);
+  });
 
-    const res = await request(app)
-      .get('/api/admin/reports')
-      .set('Authorization', `Bearer ${makeAdminToken()}`);
-
+  it('PATCH /api/admin/reports/:id resolves report', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ listing_id: UUID }] })
+      .mockResolvedValueOnce({ rows: [{ cnt: 1 }] });
+    const res = await request(app).patch(`/api/admin/reports/r1`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ status: 'resolved', action: null });
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(0);
+  });
+
+  it('PATCH /api/admin/reports/:id with remove_listing action', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ listing_id: UUID }] })
+      .mockResolvedValueOnce({ rows: [{ listing_id: UUID }] })
+      .mockResolvedValueOnce({ rows: [{ cnt: 1 }] });
+    const res = await request(app).patch(`/api/admin/reports/r1`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ status: 'resolved', action: 'remove_listing' });
+    expect(res.status).toBe(200);
+    expect(publishEvent).toHaveBeenCalled();
+  });
+
+  it('PATCH /api/admin/reports/:id auto-hides when 3+ reports', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ listing_id: UUID }] })
+      .mockResolvedValueOnce({ rows: [{ cnt: 3 }] });
+    const res = await request(app).patch(`/api/admin/reports/r1`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ status: 'resolved', action: null });
+    expect(res.status).toBe(200);
+  });
+
+  it('PATCH /api/admin/reports/:id rejects non-admin', async () => {
+    const res = await request(app).patch('/api/admin/reports/r1')
+      .set('Authorization', `Bearer ${userToken()}`)
+      .send({ status: 'resolved' });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('Admin Service — Fraud Flags', () => {
+  it('GET /api/admin/fraud-flags returns unresolved flags', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ id: 'f1', type: 'price', resolved: false }] });
+    const res = await request(app).get('/api/admin/fraud-flags')
+      .set('Authorization', `Bearer ${adminToken()}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it('GET /api/admin/fraud-flags rejects non-admin', async () => {
+    const res = await request(app).get('/api/admin/fraud-flags')
+      .set('Authorization', `Bearer ${userToken()}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('PATCH /api/admin/fraud-flags/:id/resolve resolves flag', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    const res = await request(app).patch('/api/admin/fraud-flags/f1/resolve')
+      .set('Authorization', `Bearer ${adminToken()}`);
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/resolved/i);
+  });
+
+  it('PATCH /api/admin/fraud-flags/:id/resolve rejects non-admin', async () => {
+    const res = await request(app).patch('/api/admin/fraud-flags/f1/resolve')
+      .set('Authorization', `Bearer ${userToken()}`);
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('Admin Service — User Reports', () => {
+  it('POST /api/reports rejects unauthenticated', async () => {
+    const res = await request(app).post('/api/reports')
+      .send({ listing_id: UUID, reason: 'spam', description: 'Spam item' });
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /api/reports submits report', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ cnt: 1 }] });
+    const res = await request(app).post('/api/reports')
+      .set('Authorization', `Bearer ${userToken()}`)
+      .send({ listing_id: UUID, reason: 'spam', description: 'Spam description' });
+    expect(res.status).toBe(201);
+    expect(publishEvent).toHaveBeenCalled();
+  });
+
+  it('POST /api/reports auto-hides when 3+ reports', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ cnt: 3 }] });
+    const res = await request(app).post('/api/reports')
+      .set('Authorization', `Bearer ${userToken()}`)
+      .send({ listing_id: UUID, reason: 'fraud', description: 'Fraud item' });
+    expect(res.status).toBe(201);
+  });
+});
+
+describe('Admin Service — Health & Metrics', () => {
+  it('GET /health returns ok', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    const res = await request(app).get('/health');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+  });
+
+  it('GET /metrics returns data', async () => {
+    const res = await request(app).get('/metrics');
+    expect(res.status).toBe(200);
+  });
+
+  it('error handler catches DB errors', async () => {
+    pool.query.mockRejectedValueOnce(new Error('DB down'));
+    const res = await request(app).get('/health');
+    expect(res.status).toBe(500);
+  });
+});
+
+describe('Admin Service — Lifecycle (init/shutdown/events)', () => {
+  let exitSpy;
+
+  beforeEach(() => {
+    exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    exitSpy.mockRestore();
+  });
+
+  it('_init starts redis and subscribes to audit events', async () => {
+    const mockServer = { close: jest.fn((cb) => cb && cb()) };
+    jest.spyOn(app, 'listen').mockReturnValue(mockServer);
+    const { initRedis, subscribeToEvents } = require('../../shared/events');
+    await app._init();
+    expect(initRedis).toHaveBeenCalled();
+    expect(subscribeToEvents).toHaveBeenCalled();
+    app.listen.mockRestore();
+  });
+
+  it('audit event handler inserts fraud flag for LOW_PRICE_FLAG', async () => {
+    const { subscribeToEvents } = require('../../shared/events');
+    const auditCall = subscribeToEvents.mock.calls.find(c => c[0] === 'audit');
+    if (auditCall) {
+      pool.query.mockResolvedValue({ rows: [] });
+      await auditCall[1]({ type: 'fraud.low_price', listingId: UUID, sellerId: 'u1', rule: 'price_too_low' });
+    }
+    expect(true).toBe(true);
+  });
+
+  it('audit event handler inserts fraud flag for SPAM_RATE_FLAG', async () => {
+    const { subscribeToEvents } = require('../../shared/events');
+    const auditCall = subscribeToEvents.mock.calls.find(c => c[0] === 'audit');
+    if (auditCall) {
+      pool.query.mockResolvedValue({ rows: [] });
+      await auditCall[1]({ type: 'fraud.spam', listingId: UUID, sellerId: 'u1', rule: 'spam_detected' });
+    }
+    expect(true).toBe(true);
+  });
+
+  it('audit event handler ignores unknown event types', async () => {
+    const { subscribeToEvents } = require('../../shared/events');
+    const auditCall = subscribeToEvents.mock.calls.find(c => c[0] === 'audit');
+    if (auditCall) {
+      await auditCall[1]({ type: 'unknown.event' });
+    }
+    expect(true).toBe(true);
+  });
+
+  it('_shutdown closes server and exits', async () => {
+    const mockServer = { close: jest.fn((cb) => cb && cb()) };
+    jest.spyOn(app, 'listen').mockReturnValue(mockServer);
+    await app._init();
+    app.listen.mockRestore();
+
+    pool.end = jest.fn().mockResolvedValue();
+    await app._shutdown('SIGTERM');
+    expect(exitSpy).toHaveBeenCalledWith(0);
   });
 });

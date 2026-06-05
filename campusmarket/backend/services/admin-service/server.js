@@ -168,8 +168,8 @@ app.post('/api/reports', authenticate, asyncHandler(async (req, res) => {
     [listing_id, 'pending']
   );
   if (count.rows[0].cnt >= 3) {
-    await publishEvent(EVENT_CHANNELS.ADMIN, { type: 'listing.removed', listingId });
-    logger.info('Auto-hidden listing due to reports', { listingId });
+    await publishEvent(EVENT_CHANNELS.ADMIN, { type: 'listing.removed', listingId: listing_id });
+    logger.info('Auto-hidden listing due to reports', { listingId: listing_id });
   }
 
   res.status(201).json({ message: 'Report submitted' });
@@ -226,4 +226,7 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-init();
+module.exports = app;
+module.exports._init = init;
+module.exports._shutdown = shutdown;
+if (require.main === module) { init(); }
