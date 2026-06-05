@@ -11,7 +11,7 @@ pipeline {
     REGISTRY       = 'praisesn'
     IMAGE_TAG      = "${env.GIT_COMMIT?.take(7) ?: 'latest'}"
     SERVICES_PATH  = 'campusmarket/backend/services'
-    SONAR_HOST_URL = 'http://host.docker.internal:9000'
+    SONAR_HOST_URL = 'http://sonarqube:9000'
     K8S_NAMESPACE  = 'campustrade'
     SERVICES       = 'auth-service user-service listing-service chat-service admin-service ai-service search-service notification-service api-gateway'
   }

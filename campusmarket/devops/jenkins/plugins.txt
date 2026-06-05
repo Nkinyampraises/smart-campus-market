@@ -1,0 +1,13 @@
+git
+github
+github-branch-source
+workflow-aggregator
+pipeline-stage-view
+docker-workflow
+sonar
+credentials-binding
+htmlpublisher
+timestamper
+matrix-auth
+build-name-setter
+ws-cleanup

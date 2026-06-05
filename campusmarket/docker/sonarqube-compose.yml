@@ -7,7 +7,7 @@ version: '3.9'
 services:
 
   sonarqube:
-    image: sonarqube:lts-community
+    image: sonarqube:community
     container_name: campustrade-sonarqube
     restart: unless-stopped
     ports:
