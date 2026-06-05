@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: listing-service
-          image: campustrade/listing-service:latest
+          image: praisesn/listing-service:latest
           ports:
             - containerPort: 3003
           envFrom:

@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: ai-service
-          image: campustrade/ai-service:latest
+          image: praisesn/ai-service:latest
           ports:
             - containerPort: 3006
           envFrom:

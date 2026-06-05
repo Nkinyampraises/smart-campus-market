@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: auth-service
-          image: campustrade/auth-service:latest
+          image: praisesn/auth-service:latest
           ports:
             - containerPort: 3001
           envFrom:

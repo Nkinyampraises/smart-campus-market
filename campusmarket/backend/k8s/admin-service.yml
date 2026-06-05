@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: admin-service
-          image: campustrade/admin-service:latest
+          image: praisesn/admin-service:latest
           ports:
             - containerPort: 3005
           envFrom:

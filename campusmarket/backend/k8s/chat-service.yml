@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: chat-service
-          image: campustrade/chat-service:latest
+          image: praisesn/chat-service:latest
           ports:
             - containerPort: 3004
           envFrom:

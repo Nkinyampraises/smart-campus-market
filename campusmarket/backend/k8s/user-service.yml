@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: user-service
-          image: campustrade/user-service:latest
+          image: praisesn/user-service:latest
           ports:
             - containerPort: 3002
           envFrom:
