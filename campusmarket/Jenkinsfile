@@ -113,7 +113,7 @@ pipeline {
             curl -sf ${SONAR_HOST_URL}/api/system/status 2>/dev/null | grep -q '"status":"UP"' || { echo "SonarQube not ready, skipping"; exit 0; }
 
             echo "SonarQube is UP - running analysis..."
-            for svc in auth-service user-service listing-service notification-service chat-service; do
+            for svc in auth-service user-service listing-service notification-service chat-service admin-service; do
               if [ -d "$SERVICES_PATH/\$svc" ]; then
                 echo "=== Scanning \$svc ==="
                 (cd $SERVICES_PATH/\$svc && sonar-scanner \\
