@@ -73,8 +73,8 @@ const Register = () => {
     const result = await register(form);
     setLoading(false);
     if (result.success) {
-      showToast('Account created! Check your email to verify.', 'success');
-      navigate('/verify-email');
+      showToast('Account created! You can now log in.', 'success');
+      navigate('/login');
     } else {
       showToast(result.error || 'Registration failed. Try again.', 'error');
     }

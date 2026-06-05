@@ -55,13 +55,11 @@ app.post('/api/auth/register', authLimiter, asyncHandler(async (req, res) => {
   const passwordHash = await bcrypt.hash(pwCheck.value, SALT_ROUNDS);
 
   const result = await pool.query(
-    'INSERT INTO users (email, password_hash, first_name, last_name, campus_zone, created_at) VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING id',
+    'INSERT INTO users (email, password_hash, first_name, last_name, campus_zone, is_verified, created_at) VALUES ($1,$2,$3,$4,$5,TRUE,NOW()) RETURNING id',
     [emailCheck.value, passwordHash, sanitizeString(first_name, 100), sanitizeString(last_name, 100), sanitizeString(campus_zone, 100)]
   );
 
   const userId = result.rows[0].id;
-  const verificationToken = jwt.sign({ userId, type: 'verify' }, JWT_SECRET, { expiresIn: '24h' });
-  await pool.query('UPDATE users SET verification_token=$1 WHERE id=$2', [verificationToken, userId]);
 
   await publishEvent(EVENT_CHANNELS.USER, {
     type: EVENT_TYPES.USER_REGISTERED,
@@ -70,14 +68,8 @@ app.post('/api/auth/register', authLimiter, asyncHandler(async (req, res) => {
     timestamp: new Date().toISOString()
   });
 
-  await publishEvent(EVENT_CHANNELS.NOTIFICATION, {
-    type: EVENT_TYPES.WELCOME_EMAIL,
-    userId, email: emailCheck.value,
-    payload: { verificationToken }
-  });
-
   logger.info('User registered', { userId, email: emailCheck.value });
-  res.status(201).json({ message: 'Account created! Check your email to verify your account.', userId });
+  res.status(201).json({ message: 'Account created successfully! You can now log in.', userId });
 }));
 
 // POST /api/auth/login
@@ -97,7 +89,6 @@ app.post('/api/auth/login', authLimiter, asyncHandler(async (req, res) => {
   const validPw = await bcrypt.compare(password, user.password_hash);
   if (!validPw) throw new AppError('Invalid credentials', 401);
 
-  if (!user.is_verified) throw new AppError('Please verify your email first', 403);
   if (user.is_suspended) throw new AppError(`Account suspended: ${user.suspended_reason || 'No reason given'}`, 403);
 
   const accessToken = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
