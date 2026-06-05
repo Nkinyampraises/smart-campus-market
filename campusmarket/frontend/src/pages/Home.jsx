@@ -292,6 +292,14 @@ const Home = () => {
                     </span>
                   </li>
                 ))}
+                <li>
+                  <Link
+                    to="/about"
+                    className="text-[14px] text-gray-500 hover:text-[#ff6b1a] no-underline transition-colors"
+                  >
+                    About the Team
+                  </Link>
+                </li>
               </ul>
             </div>
 

@@ -57,6 +57,9 @@ import AdminListings from './pages/AdminListings';
 import AdminReports from './pages/AdminReports';
 import AdminFraud from './pages/AdminFraud';
 
+// About Page
+import About from './pages/About';
+
 // Error Pages
 import NotFound from './pages/NotFound';
 import Forbidden from './pages/Forbidden';
@@ -91,6 +94,7 @@ function App() {
 
             {/* Main App Routes (home & browse are public landing pages) */}
             <Route path="/home" element={<Home />} />
+            <Route path="/about" element={<About />} />
             <Route path="/browse" element={<Browse />} />
             <Route path="/search" element={<ProtectedRoute><Search /></ProtectedRoute>} />
             <Route path="/listing/:id" element={<ProtectedRoute><ListingDetail /></ProtectedRoute>} />

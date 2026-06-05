@@ -29,6 +29,12 @@ const AuthNavbar = ({ page }) => {
           >
             Browse
           </Link>
+          <Link
+            to="/about"
+            className="px-3 py-2 rounded-lg font-semibold text-[14px] no-underline text-gray-600 hover:text-[#ff6b1a] hover:bg-orange-50 transition-colors"
+          >
+            About
+          </Link>
         </nav>
 
         {/* CTA */}
