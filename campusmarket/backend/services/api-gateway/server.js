@@ -15,11 +15,15 @@ const PORT = process.env.PORT || 3000;
 
 app.disable('x-powered-by');
 
+// Support comma-separated FRONTEND_URL list, e.g. "http://209.38.199.108:4000,http://localhost:5173"
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',').map(o => o.trim());
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      connectSrc: ["'self'", process.env.FRONTEND_URL || 'http://localhost:5173', 'ws:', 'wss:'],
+      connectSrc: ["'self'", ...allowedOrigins, 'ws:', 'wss:'],
     },
   },
   hsts: {
@@ -55,7 +59,10 @@ app.use((req, res, next) => {
 
 // NOTE: Do NOT parse body here — proxy must forward raw body to downstream services
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Authorization', 'Content-Type', 'X-User-Id'],

@@ -236,7 +236,8 @@ app.patch('/api/conversations/:id/read', authenticate, asyncHandler(async (req, 
 }));
 
 // Socket.io — real-time messaging with Redis adapter
-io = new Server(server, { cors: { origin: process.env.FRONTEND_URL || 'http://localhost:5173' } });
+const _chatAllowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(o => o.trim());
+io = new Server(server, { cors: { origin: _chatAllowedOrigins, credentials: true } });
 
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
