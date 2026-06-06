@@ -110,8 +110,9 @@ export const api = {
 
   // ── AI ────────────────────────────────────────────────────────────────────
   priceSuggestion: (data) => post('/api/ai/price-suggestion', data),
-  fraudCheck:      (data) => post('/api/ai/fraud-check', data),
-  aiTrending:      ()     => get('/api/ai/trending'),
+  fraudCheck:        (data) => post('/api/ai/fraud-check', data),
+  listingFraudFlags: (id)  => get(`/api/admin/listing-flags/${id}`),
+  aiTrending:        ()    => get('/api/ai/trending'),
 };
 
 export const saveToken  = (token) => localStorage.setItem('campustrade_token', token);

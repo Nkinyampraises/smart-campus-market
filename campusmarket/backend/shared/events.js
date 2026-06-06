@@ -33,8 +33,9 @@ const EVENT_TYPES = {
   NEW_OFFER: 'new_offer',
   OFFER_ACCEPTED: 'offer_accepted',
   WELCOME_EMAIL: 'welcome_email',
-  LOW_PRICE_FLAG: 'low_price_flag',
-  SPAM_RATE_FLAG: 'spam_rate_flag',
+  LOW_PRICE_FLAG:  'low_price_flag',
+  HIGH_PRICE_FLAG: 'high_price_flag',
+  SPAM_RATE_FLAG:  'spam_rate_flag',
 };
 
 let redisClient;

@@ -32,7 +32,7 @@ const CATEGORY_MIN_PRICES = {
   'Pancake/Cake':  250,
   Shawarma:        500,
   Shoes:          1500,
-  'Liquid Soap':   500,
+  'Liquid Soap':  2000,
   default:         250,
 };
 
@@ -103,16 +103,25 @@ app.post('/api/ai/fraud-check', asyncHandler(async (req, res) => {
   // Use transaction average OR hardcoded market minimum — whichever is higher
   const refPrice = Math.max(avg || 0, CATEGORY_MIN_PRICES[category] || CATEGORY_MIN_PRICES.default);
 
-  // Rule 1: Price < 30% of reference price
-  if (price_fcfa < refPrice * 0.30) {
+  // Rule 1: Price < 60% of reference price — suspiciously low
+  if (price_fcfa < refPrice * 0.60) {
     flags.push({
       type: EVENT_TYPES.LOW_PRICE_FLAG,
-      rule: `Price ${Math.round((price_fcfa / refPrice) * 100)}% below market reference for ${category} (ref: ${refPrice.toLocaleString()} FCFA)`,
+      rule: `Price is only ${Math.round((price_fcfa / refPrice) * 100)}% of market reference for ${category} (ref: ${refPrice.toLocaleString()} FCFA) — suspiciously low`,
       listingId, sellerId
     });
   }
 
-  // Rule 2: Spam rate (>10 listings in 60 minutes)
+  // Rule 2: Price > 8x reference price — suspiciously high
+  if (price_fcfa > refPrice * 8) {
+    flags.push({
+      type: EVENT_TYPES.HIGH_PRICE_FLAG,
+      rule: `Price ${Math.round((price_fcfa / refPrice) * 100)}% above market reference for ${category} (ref: ${refPrice.toLocaleString()} FCFA) — suspiciously high`,
+      listingId, sellerId
+    });
+  }
+
+  // Rule 3: Spam rate (>10 listings in 60 minutes)
   const recentCount = await pool.query(
     "SELECT COUNT(*)::int as cnt FROM listings WHERE seller_id=$1 AND created_at > NOW() - INTERVAL '60 minutes'",
     [sellerId]
@@ -216,10 +225,20 @@ async function setupEventHandlers() {
       try {
         const { avg } = await getCategoryAvgPrice(event.category);
         const refPrice = Math.max(avg || 0, CATEGORY_MIN_PRICES[event.category] || CATEGORY_MIN_PRICES.default);
-        if (event.price_fcfa < refPrice * 0.30) {
+
+        if (event.price_fcfa < refPrice * 0.60) {
           await publishEvent(EVENT_CHANNELS.AUDIT, {
             type: EVENT_TYPES.LOW_PRICE_FLAG,
-            rule: `Price ${Math.round((event.price_fcfa / refPrice) * 100)}% below market reference for ${event.category} (ref: ${refPrice.toLocaleString()} FCFA)`,
+            rule: `Price is only ${Math.round((event.price_fcfa / refPrice) * 100)}% of market reference for ${event.category} (ref: ${refPrice.toLocaleString()} FCFA) — suspiciously low`,
+            listingId: event.listingId,
+            sellerId: event.sellerId
+          });
+        }
+
+        if (event.price_fcfa > refPrice * 8) {
+          await publishEvent(EVENT_CHANNELS.AUDIT, {
+            type: EVENT_TYPES.HIGH_PRICE_FLAG,
+            rule: `Price ${Math.round((event.price_fcfa / refPrice) * 100)}% above market reference for ${event.category} (ref: ${refPrice.toLocaleString()} FCFA) — suspiciously high`,
             listingId: event.listingId,
             sellerId: event.sellerId
           });
