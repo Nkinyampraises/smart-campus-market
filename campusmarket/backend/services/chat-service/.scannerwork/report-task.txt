@@ -1,0 +1,6 @@
+projectKey=campustrade-chat-service
+serverUrl=http://localhost:9000
+serverVersion=9.9.8.100196
+dashboardUrl=http://localhost:9000/dashboard?id=campustrade-chat-service
+ceTaskId=AZ6WQm0tIAFL7owv5Z4k
+ceTaskUrl=http://localhost:9000/api/ce/task?id=AZ6WQm0tIAFL7owv5Z4k
