@@ -5,26 +5,32 @@ import AuthNavbar from '../components/AuthNavbar';
 const team = [
   {
     name: 'Praises Ncha',
-    role: 'Lead Developer & Software Engineering Student',
+    subtitle: 'Scrum Master',
+    role: 'Software Engineering Student',
     company: 'Currently at RENEWBERRY',
-    bio: "I'm a Software Engineering student, developer, and technology enthusiast. I enjoy creating software solutions, learning new technologies, and turning ideas into reality through code. When I'm not programming, I enjoy singing, drawing, and exploring creative projects that inspire innovation.",
-    tags: ['Full-Stack Developer', 'React', 'Node.js', 'Microservices', 'Docker'],
+    bio: "I'm a Software Engineering student, developer, and technology enthusiast. I enjoy creating software solutions and learning new technologies.",
+    contributions: ['Design', 'Frontend', 'Testing', 'Jenkins', 'VPS', 'Grafana', 'Prometheus', 'SonarQube'],
+    tags: ['Scrum Master', 'Frontend', 'DevOps', 'Testing', 'React'],
     socials: { github: 'Nkinyampraises' },
     initials: 'PN',
     gradient: 'from-[#ff6b1a] to-[#ff9a5c]',
     photo: '/praises.jpg',
+    photoPosition: 'object-top',
   },
   {
     name: 'Kongyu Jesse Ntani',
+    subtitle: 'Product Owner',
     studentId: 'ICTU20234195',
     role: 'Co-Developer & Entrepreneur',
     company: 'Founder of RFA & Uplift Social',
     bio: 'Visionary entrepreneur, aspiring politician, and engineer with a passion for building institutions that uplift communities. Founder of Realities Foundation Association (RFA) and Uplift Social — dedicated to driving positive change through technology and leadership.',
-    tags: ['Entrepreneur', 'RFA President', 'Uplift Social', 'Aspiring Politician', 'Engineer'],
+    contributions: ['Backend', 'Microservices', 'Event-Driven Architecture', 'Documentation', 'PowerPoint', 'Architecture'],
+    tags: ['Product Owner', 'Backend', 'Microservices', 'Architecture', 'Documentation'],
     socials: {},
     initials: 'KN',
     gradient: 'from-[#1a56ff] to-[#5c9aff]',
     photo: '/jesse.jpg',
+    photoPosition: 'object-center',
   },
 ];
 
@@ -34,13 +40,13 @@ const MemberCard = ({ member }) => {
   return (
     <div className="bg-white rounded-3xl shadow-[0px_4px_40px_rgba(0,0,0,0.08)] overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
       {/* Photo / Avatar */}
-      <div className="relative h-64 overflow-hidden">
+      <div className="relative h-72 overflow-hidden bg-gray-900">
         {!imgError ? (
           <img
             src={member.photo}
             alt={member.name}
             onError={() => setImgError(true)}
-            className="w-full h-full object-cover object-top"
+            className={`w-full h-full object-cover ${member.photoPosition}`}
           />
         ) : (
           <div className={`w-full h-full bg-gradient-to-br ${member.gradient} flex items-center justify-center`}>
@@ -49,18 +55,24 @@ const MemberCard = ({ member }) => {
             </span>
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
         {member.studentId && (
           <span className="absolute top-4 right-4 bg-white/90 text-[11px] font-black tracking-wider text-gray-600 px-3 py-1 rounded-full">
             {member.studentId}
           </span>
         )}
+        {/* Name overlay on photo */}
+        <div className="absolute bottom-0 left-0 right-0 p-5">
+          <h3 className="font-[Epilogue] text-[22px] font-black text-white mb-0.5">{member.name}</h3>
+          <span className="inline-block bg-[#ff6b1a] text-white text-[11px] font-black px-3 py-1 rounded-full">
+            {member.subtitle}
+          </span>
+        </div>
       </div>
 
       {/* Info */}
-      <div className="p-7">
-        <h3 className="font-[Epilogue] text-[22px] font-black text-[#1b1c1c] mb-1">{member.name}</h3>
-        <p className="text-[#ff6b1a] font-bold text-[13px] mb-1">{member.role}</p>
+      <div className="p-6">
+        <p className="text-gray-400 text-[12px] font-semibold mb-1">{member.role}</p>
         <p className="text-gray-400 text-[12px] font-semibold mb-4 flex items-center gap-1">
           <span className="material-symbols-outlined text-[14px]">work</span>
           {member.company}
@@ -68,16 +80,19 @@ const MemberCard = ({ member }) => {
 
         <p className="text-[14px] text-[#5c5f60] leading-relaxed mb-5">{member.bio}</p>
 
-        {/* Tags */}
-        <div className="flex flex-wrap gap-2 mb-5">
-          {member.tags.map((tag) => (
-            <span
-              key={tag}
-              className="bg-[#fff4ee] text-[#ff6b1a] text-[11px] font-bold px-3 py-1 rounded-full border border-[#ffd9c4]"
-            >
-              {tag}
-            </span>
-          ))}
+        {/* Contributions */}
+        <div className="mb-5">
+          <p className="text-[11px] font-black text-[#1b1c1c] uppercase tracking-widest mb-2">Worked On</p>
+          <div className="flex flex-wrap gap-2">
+            {member.contributions.map((item) => (
+              <span
+                key={item}
+                className="bg-[#fff4ee] text-[#ff6b1a] text-[11px] font-bold px-3 py-1 rounded-full border border-[#ffd9c4]"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* GitHub */}
@@ -155,7 +170,7 @@ const About = () => {
         </div>
       </section>
 
-      {/* Project stack */}
+      {/* Tech stack */}
       <section className="bg-white border-t border-b border-gray-100 py-16 px-6">
         <div className="max-w-5xl mx-auto">
           <h2 className="font-[Epilogue] text-[28px] font-black text-[#1b1c1c] mb-2 text-center">Tech Stack</h2>
@@ -187,7 +202,7 @@ const About = () => {
         <h2 className="font-[Epilogue] text-[28px] font-black text-[#1b1c1c] mb-4">
           Ready to buy or sell on campus?
         </h2>
-        <p className="text-gray-500 text-[15px] mb-8">Join 1,800+ ICT University students already trading.</p>
+        <p className="text-gray-500 text-[15px] mb-8">Join ICT University students already trading.</p>
         <div className="flex gap-4 justify-center">
           <Link
             to="/register"
