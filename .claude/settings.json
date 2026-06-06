@@ -1,38 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(curl -sf -u admin:admin123 \"http://localhost:9000/api/ce/activity?ps=20\")",
-      "Bash(python -c \"import sys,json; tasks=json.load\\(sys.stdin\\).get\\('tasks',[]\\); [print\\(t.get\\('componentName','?'\\)+' | '+t['status']+' | submittedAt='+t.get\\('submittedAt','?'\\)\\) for t in tasks]\")",
-      "Bash(curl -sf -u admin:admin123 \"http://localhost:9000/api/measures/component?component=campustrade-auth-service&metricKeys=coverage,ncloc,lines,duplicated_lines_density,bugs,vulnerabilities,code_smells\")",
-      "Bash(\"C:\\\\sonar-scanner\\\\bin\\\\sonar-scanner.bat\" -Dsonar.login=admin -Dsonar.password=admin123 -X)",
-      "Bash(\"C:\\\\sonar-scanner\\\\bin\\\\sonar-scanner.bat\" -Dsonar.login=admin -Dsonar.password=admin123 -Dsonar.sources=server.js -X)",
-      "Bash(cd \"c:/Users/MATRIX TECHNOLOGY/Documents/smart campus market/campusmarket/backend/services/auth-service\" && \"C:\\\\sonar-scanner\\\\bin\\\\sonar-scanner.bat\" -Dsonar.login=admin -Dsonar.password=admin123 -X > /tmp/sonar_debug.txt 2>&1; grep -a -E \"file|index|sensor|analy|0 source|no files|js file\" /tmp/sonar_debug.txt | grep -v \"DEBUG\" | head -30)",
-      "Read(//tmp/**)",
-      "Bash(grep -E \"file|index|sensor|0 source|js$|\\\\.js\")",
-      "Bash(grep -v \"^$\")",
-      "Bash(\"C:\\\\sonar-scanner\\\\bin\\\\sonar-scanner.bat\" -Dsonar.login=admin -Dsonar.password=admin123 -Dsonar.scm.disabled=true)",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('jest',{}\\).get\\('coverageThreshold',{}\\), indent=2\\)\\)\")",
-      "PowerShell(Get-Command sonar-scanner -ErrorAction SilentlyContinue; docker ps --format \"{{.Names}}\" | Where-Object { $_ -match \"sonar\" })",
-      "Bash(curl -s -u admin:admin123 \"http://localhost:9000/api/projects/search?ps=50\")",
-      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(c['key']\\) for c in d.get\\('components',[]\\)]\")",
-      "Bash(curl -s -u admin:admin123 \"http://localhost:9000/api/measures/search_projects?metricKeys=coverage,duplicated_lines_density,violations,bugs,code_smells,vulnerabilities,reliability_rating,security_rating,sqale_rating&ps=50\")",
-      "Bash(curl -s -u admin:admin123 \"http://localhost:9000/api/qualitygates/list\")",
-      "PowerShell(Get-Process -Id 4188, 6656 -ErrorAction SilentlyContinue)",
-      "Bash(curl -s --max-time 10 -u admin:admin123 \"http://localhost:9000/api/system/status\")",
-      "Bash(curl -s --max-time 10 -u admin:admin123 \"http://host.docker.internal:9000/api/system/status\")",
-      "PowerShell(docker context ls 2>&1)",
-      "PowerShell(wsl -- docker ps --format \"table {{.Names}}\\\\t{{.Image}}\\\\t{{.Ports}}\\\\t{{.Status}}\" 2>&1)",
-      "PowerShell(wsl -- curl -s --max-time 8 -u admin:admin123 \"http://localhost:9000/api/system/status\" 2>&1)",
-      "PowerShell(Get-Process | Where-Object { $_.ProcessName -match \"java|jenkins|sonar\" } | Select-Object Id, ProcessName, CPU, WorkingSet | Format-Table -AutoSize)",
-      "Read(//c/ProgramData/**)",
-      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\MATRIX TECHNOLOGY\\\\Documents\\\\smart campus market\\\\campusmarket\" -Recurse -Depth 3 -ErrorAction SilentlyContinue | Where-Object { !$_.PSIsContainer -and $_.FullName -notmatch \"node_modules|\\\\.git|coverage|dist\" } | Select-Object FullName | Sort-Object FullName)",
-      "Bash(ssh -i \"/c/Users/MATRIX TECHNOLOGY/.ssh/id_ed25519\" -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@209.38.199.108 \"whoami && lsb_release -a\")",
-      "Bash(ssh -i '/c/Users/MATRIX TECHNOLOGY/.ssh/id_ed25519' -o StrictHostKeyChecking=no root@209.38.199.108 ' *)",
-      "Bash(ssh -i *)",
-      "Bash(git remote *)",
-      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\MATRIX TECHNOLOGY\\\\Documents\\\\smart campus market\\\\campusmarket\" -Directory)",
-      "Bash(Select-Object Name)",
-      "Bash(grep -E \"\\\\.\\(js|ts\\)$\")"
+      "Bash(pip show *)",
+      "PowerShell(python --version 2>&1)",
+      "PowerShell(pip show python-pptx 2>&1)",
+      "PowerShell(pip install python-pptx 2>&1)"
     ]
   }
 }

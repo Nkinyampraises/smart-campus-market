@@ -170,23 +170,26 @@ app.use((err, _req, res, _next) => {
   if (!res.headersSent) res.status(500).json({ error: 'Internal gateway error' });
 });
 
-const server = app.listen(PORT, () => {
-  logger.info(`API Gateway running on port ${PORT}`);
-  logger.info('Routing to services', SERVICES);
-});
+let server;
+if (process.env.NODE_ENV !== 'test') {
+  server = app.listen(PORT, () => {
+    logger.info(`API Gateway running on port ${PORT}`);
+    logger.info('Routing to services', SERVICES);
+  });
 
-// Upgrade HTTP server for WebSocket proxying
-server.on('upgrade', (request, socket, head) => {
-  // Route WebSocket upgrades to chat service
-  const chatProxy = proxy(SERVICES.chat);
-  chatProxy.upgrade(request, socket, head);
-});
+  server.on('upgrade', (request, socket, head) => {
+    const chatProxy = proxy(SERVICES.chat);
+    chatProxy.upgrade(request, socket, head);
+  });
 
-async function shutdown(signal) {
-  logger.info('Shutdown signal received', { signal, service: 'api-gateway' });
-  await new Promise((resolve) => server.close(resolve));
-  process.exit(0);
+  async function shutdown(signal) {
+    logger.info('Shutdown signal received', { signal, service: 'api-gateway' });
+    await new Promise((resolve) => server.close(resolve));
+    process.exit(0);
+  }
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+module.exports = app;

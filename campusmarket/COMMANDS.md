@@ -27,14 +27,14 @@ ssh root@209.38.199.108
 
 ## 3. Port Reference
 
-| Service              | URL                              |
-|----------------------|----------------------------------|
-| Frontend (App)       | http://209.38.199.108:4000       |
-| API Gateway          | http://209.38.199.108:8080       |
-| Jenkins CI           | http://209.38.199.108:8090       |
-| SonarQube            | http://209.38.199.108:9000       |
-| Grafana              | http://209.38.199.108:3009       |
-| Prometheus           | http://209.38.199.108:9090       |
+| Service        | URL                        |
+| -------------- | -------------------------- |
+| Frontend (App) | http://209.38.199.108:4000 |
+| API Gateway    | http://209.38.199.108:8080 |
+| Jenkins CI     | http://209.38.199.108:8090 |
+| SonarQube      | http://209.38.199.108:9000 |
+| Grafana        | http://209.38.199.108:3009 |
+| Prometheus     | http://209.38.199.108:9090 |
 
 ---
 
@@ -62,6 +62,7 @@ nginx -s reload
 ```
 
 **One-liner (pull + build + deploy):**
+
 ```bash
 cd /opt/campustrade && git pull && cd campusmarket/frontend && npm run build && cp -r dist/* /var/www/html/ && nginx -s reload
 ```
@@ -98,11 +99,13 @@ docker compose up -d --build listing-service
 ## 7. Individual Container — Stop / Start
 
 ### See all running containers and ports:
+
 ```bash
 docker ps --format "table {{.Names}}\t{{.Ports}}\t{{.Status}}"
 ```
 
 ### Stop one container (others keep running):
+
 ```bash
 docker stop backend-grafana-1
 docker stop backend-prometheus-1
@@ -122,6 +125,7 @@ docker stop backend-redis-1
 ```
 
 ### Start a stopped container back:
+
 ```bash
 docker start backend-grafana-1
 docker start campustrade-jenkins
@@ -130,11 +134,13 @@ docker start campustrade-sonarqube
 ```
 
 ### Stop the frontend (nginx):
+
 ```bash
 systemctl stop nginx
 ```
 
 ### Start the frontend back:
+
 ```bash
 systemctl start nginx
 ```
@@ -390,6 +396,7 @@ cd /opt/campustrade && git pull && \
 4. Click **Build Now**
 
 Or via command line:
+
 ```bash
 CRUMB=$(curl -s "http://admin:nkinyam2023@localhost:8090/crumbIssuer/api/json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['crumb'])")
 curl -s -X POST "http://admin:nkinyam2023@localhost:8090/job/CampusTrade-Pipeline/build" \
