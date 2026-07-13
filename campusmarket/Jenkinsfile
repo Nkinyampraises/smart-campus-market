@@ -22,7 +22,8 @@ pipeline {
 
   environment {
     NODE_IMAGE = 'node:20-alpine'
-    COMPOSE_PROJECT_NAME = 'campusmarket'
+    CI_COMPOSE_PROJECT_NAME = 'campusmarket-ci'
+    DEPLOY_COMPOSE_PROJECT_NAME = 'campusmarket'
     COMPOSE_FILE = 'backend/docker-compose.prod.yml'
     DEPLOY_ROOT = '/srv/campustrade'
   }
@@ -39,6 +40,7 @@ pipeline {
         dir('campusmarket') {
           sh '''
             docker compose \
+              -p "$CI_COMPOSE_PROJECT_NAME" \
               --env-file backend/.env.example \
               -f "$COMPOSE_FILE" \
               config --quiet
@@ -84,6 +86,7 @@ pipeline {
         dir('campusmarket') {
           sh '''
             docker compose \
+              -p "$CI_COMPOSE_PROJECT_NAME" \
               --env-file backend/.env.example \
               -f "$COMPOSE_FILE" \
               build --pull
@@ -100,13 +103,8 @@ pipeline {
               frontend api-gateway auth-service user-service listing-service \
               chat-service admin-service ai-service search-service notification-service
             do
-              image_id="$(docker compose \
-                --env-file backend/.env.example \
-                -f "$COMPOSE_FILE" \
-                images -q "$service")"
-              test -n "$image_id"
-              image_ref="$(docker image inspect --format '{{index .RepoTags 0}}' "$image_id")"
-              test -n "$image_ref"
+              image_ref="${CI_COMPOSE_PROJECT_NAME}-${service}:latest"
+              docker image inspect "$image_ref" >/dev/null
 
               docker run --rm \
                 -v /var/run/docker.sock:/var/run/docker.sock \
@@ -149,13 +147,13 @@ pipeline {
 
               cd "$DEPLOY_ROOT"
               docker compose \
-                -p "$COMPOSE_PROJECT_NAME" \
+                -p "$DEPLOY_COMPOSE_PROJECT_NAME" \
                 --env-file backend/.env \
                 -f "$COMPOSE_FILE" \
                 up -d --build --remove-orphans
 
               docker compose \
-                -p "$COMPOSE_PROJECT_NAME" \
+                -p "$DEPLOY_COMPOSE_PROJECT_NAME" \
                 --env-file backend/.env \
                 -f "$COMPOSE_FILE" \
                 exec -T postgres \
