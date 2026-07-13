@@ -6,7 +6,7 @@ jest.mock('pg', () => {
   const mockPool = { query: jest.fn() };
   return { Pool: jest.fn(() => mockPool) };
 });
-jest.mock('../../shared/events', () => ({
+jest.mock('../../../shared/events', () => ({
   initRedis: jest.fn().mockResolvedValue(true),
   publishEvent: jest.fn().mockResolvedValue(true),
   subscribeToEvents: jest.fn().mockResolvedValue(true),
@@ -35,6 +35,13 @@ const authenticate = (req, res, next) => {
   catch { res.status(401).json({ error: 'Invalid token' }); }
 };
 
+app.get('/api/users/me', authenticate, async (req, res) => {
+  const result = await mockPool.query('SELECT * FROM users WHERE id = $1', [req.user.userId]);
+  if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
+  const { password_hash, ...user } = result.rows[0];
+  res.json(user);
+});
+
 app.get('/api/users/:id', async (req, res) => {
   const result = await mockPool.query(
     'SELECT id, first_name, last_name, campus_zone, bio, rating FROM users WHERE id = $1',
@@ -42,13 +49,6 @@ app.get('/api/users/:id', async (req, res) => {
   );
   if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
   res.json(result.rows[0]);
-});
-
-app.get('/api/users/me', authenticate, async (req, res) => {
-  const result = await mockPool.query('SELECT * FROM users WHERE id = $1', [req.user.userId]);
-  if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
-  const { password_hash, ...user } = result.rows[0];
-  res.json(user);
 });
 
 app.post('/api/users/:id/reviews', authenticate, async (req, res) => {
@@ -62,7 +62,10 @@ app.post('/api/users/:id/reviews', authenticate, async (req, res) => {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('User Service — Public Profile', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPool.query.mockReset();
+  });
 
   it('returns a public user profile', async () => {
     mockPool.query.mockResolvedValueOnce({
@@ -86,7 +89,10 @@ describe('User Service — Public Profile', () => {
 });
 
 describe('User Service — Own Profile', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPool.query.mockReset();
+  });
 
   it('returns own profile without password hash', async () => {
     mockPool.query.mockResolvedValueOnce({
@@ -109,7 +115,10 @@ describe('User Service — Own Profile', () => {
 });
 
 describe('User Service — Reviews', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPool.query.mockReset();
+  });
 
   it('submits a valid review and updates rating', async () => {
     mockPool.query

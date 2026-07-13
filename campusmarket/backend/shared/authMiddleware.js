@@ -1,5 +1,6 @@
-const jwt = require('jsonwebtoken');
+const { loadDependency } = require('./loadDependency');
 const pool = require('./db');
+const jwt = loadDependency('jsonwebtoken');
 
 async function authenticate(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];

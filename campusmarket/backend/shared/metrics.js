@@ -1,4 +1,5 @@
-const promClient = require('prom-client');
+const { loadDependency } = require('./loadDependency');
+const promClient = loadDependency('prom-client');
 
 const httpRequestDuration = new promClient.Histogram({
   name: 'http_request_duration_seconds',

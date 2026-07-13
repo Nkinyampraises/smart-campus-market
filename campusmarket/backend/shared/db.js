@@ -1,5 +1,6 @@
-const { Pool } = require('pg');
+const { loadDependency } = require('./loadDependency');
 const logger = require('./logger');
+const { Pool } = loadDependency('pg');
 
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',

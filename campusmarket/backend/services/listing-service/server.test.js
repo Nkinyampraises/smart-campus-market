@@ -20,6 +20,8 @@ jest.mock('../../shared/metrics', () => ({
 
 const pool = require('../../shared/db');
 let app;
+const userId = '11111111-1111-1111-1111-111111111111';
+const listingId = '22222222-2222-2222-2222-222222222222';
 
 beforeAll(async () => {
   process.env.JWT_SECRET = 'test_secret';
@@ -34,7 +36,7 @@ describe('Listing Service', () => {
     it('should return active listings', async () => {
       pool.query.mockResolvedValueOnce({
         rows: [
-          { id: 'l1', title: 'Book', price_fcfa: 5000, category: 'Textbooks', condition: 'Good', campus_zone: 'Main', status: 'active', seller_id: 'u2', created_at: new Date().toISOString() },
+          { id: listingId, title: 'Book', price_fcfa: 5000, category: 'Textbooks', condition: 'Good', campus_zone: 'Main', status: 'active', seller_id: userId, created_at: new Date().toISOString() },
         ],
       });
 
@@ -49,23 +51,23 @@ describe('Listing Service', () => {
     it('should return a single listing', async () => {
       pool.query.mockResolvedValueOnce({
         rows: [{
-          id: 'l1', title: 'Book', price_fcfa: 5000, category: 'Textbooks',
+          id: listingId, title: 'Book', price_fcfa: 5000, category: 'Textbooks',
           condition: 'Good', campus_zone: 'Main', status: 'active',
-          seller_id: 'u2', created_at: new Date().toISOString(),
+          seller_id: userId, created_at: new Date().toISOString(),
           seller_first: 'Jane', seller_last: 'Doe',
         }],
       });
       pool.query.mockResolvedValueOnce({ rows: [] });
 
-      const res = await request(app).get('/api/listings/l1');
+      const res = await request(app).get(`/api/listings/${listingId}`);
       expect(res.status).toBe(200);
-      expect(res.body.id).toBe('l1');
+      expect(res.body.id).toBe(listingId);
     });
 
     it('should return 404 for missing listing', async () => {
       pool.query.mockResolvedValueOnce({ rows: [] });
 
-      const res = await request(app).get('/api/listings/missing');
+      const res = await request(app).get(`/api/listings/${listingId}`);
       expect(res.status).toBe(404);
     });
   });
@@ -73,21 +75,24 @@ describe('Listing Service', () => {
   describe('POST /api/listings', () => {
     it('should create a listing', async () => {
       pool.query.mockResolvedValueOnce({
+        rows: [{ id: userId, role: 'user', is_suspended: false }],
+      });
+      pool.query.mockResolvedValueOnce({
         rows: [{
-          id: 'l1', title: 'New Book', price_fcfa: 10000, category: 'Textbooks',
-          condition: 'New', campus_zone: 'Main', status: 'active', seller_id: 'u1',
+          id: listingId, title: 'New Book', price_fcfa: 10000, category: 'Textbooks',
+          condition: 'New', campus_zone: 'Main', status: 'active', seller_id: userId,
           created_at: new Date().toISOString(),
         }],
       });
 
-      const token = require('jsonwebtoken').sign({ userId: 'u1', role: 'user' }, 'test_secret');
+      const token = require('jsonwebtoken').sign({ userId, role: 'user' }, 'test_secret');
       const res = await request(app)
         .post('/api/listings')
         .set('Authorization', `Bearer ${token}`)
         .send({ title: 'New Book', description: 'Desc', price_fcfa: 10000, category: 'Textbooks', condition: 'New', campus_zone: 'Main' });
 
       expect(res.status).toBe(201);
-      expect(res.body.id).toBe('l1');
+      expect(res.body.listingId).toBe(listingId);
     });
   });
 });

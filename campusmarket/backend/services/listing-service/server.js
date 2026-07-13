@@ -7,7 +7,7 @@ const multer = require('multer');
 const { collectDefaultMetrics, register } = require('prom-client');
 const pool = require('../../shared/db');
 const { authenticate } = require('../../shared/authMiddleware');
-const { validateListing, validateUUID } = require('../../shared/validate');
+const { sanitizeString, validateListing, validateUUID } = require('../../shared/validate');
 const { asyncHandler, AppError } = require('../../shared/errorHandler');
 const logger = require('../../shared/logger');
 const { metricsMiddleware } = require('../../shared/metrics');
@@ -18,6 +18,7 @@ const PORT = process.env.PORT || 3003;
 
 let redis;
 let server;
+let expiryInterval;
 
 collectDefaultMetrics();
 app.use(helmet());
@@ -29,6 +30,11 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 
 // Helper: record unique view with Redis dedup (1 hour window)
 async function recordView(listingId, userIdOrIp) {
+  if (!redis || typeof redis.get !== 'function' || typeof redis.set !== 'function') {
+    await pool.query('UPDATE listings SET views=views+1 WHERE id=$1', [listingId]);
+    return;
+  }
+
   const key = `view:${listingId}:${userIdOrIp}`;
   const exists = await redis.get(key);
   if (!exists) {
@@ -247,23 +253,25 @@ async function setupEventHandlers() {
   });
 }
 
-// Auto-expiry: run every hour
-const expiryInterval = setInterval(async () => {
-  try {
-    const result = await pool.query("UPDATE listings SET status='expired' WHERE status='active' AND expires_at < NOW() RETURNING id");
-    for (const row of result.rows) {
-      await publishEvent(EVENT_CHANNELS.LISTING, { type: EVENT_TYPES.LISTING_EXPIRED, listingId: row.id });
+function startExpiryJob() {
+  expiryInterval = setInterval(async () => {
+    try {
+      const result = await pool.query("UPDATE listings SET status='expired' WHERE status='active' AND expires_at < NOW() RETURNING id");
+      for (const row of result.rows) {
+        await publishEvent(EVENT_CHANNELS.LISTING, { type: EVENT_TYPES.LISTING_EXPIRED, listingId: row.id });
+      }
+    } catch (err) {
+      logger.error('Auto-expiry failed', { error: err.message });
     }
-  } catch (err) {
-    logger.error('Auto-expiry failed', { error: err.message });
-  }
-}, 3600000);
+  }, 3600000);
+}
 
 async function init() {
   try {
     await initRedis();
     redis = getRedisClient();
     await setupEventHandlers();
+    startExpiryJob();
     server = app.listen(PORT, () => logger.info(`Listing service running on port ${PORT}`));
   } catch (err) {
     logger.error('Failed to start listing-service', { error: err.message });
@@ -273,7 +281,9 @@ async function init() {
 
 async function shutdown(signal) {
   logger.info('Shutdown signal received', { signal, service: 'listing-service' });
-  clearInterval(expiryInterval);
+  if (expiryInterval) {
+    clearInterval(expiryInterval);
+  }
   if (server) {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -285,4 +295,8 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-init();
+if (process.env.NODE_ENV !== 'test') {
+  init();
+}
+
+module.exports = app;

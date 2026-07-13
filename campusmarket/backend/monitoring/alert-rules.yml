@@ -1,0 +1,59 @@
+groups:
+  - name: campustrade-availability
+    rules:
+      - alert: CampusTradeServiceDown
+        expr: up{job=~"api-gateway|auth-service|user-service|listing-service|chat-service|admin-service|ai-service|search-service|notification-service"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CampusTrade service is unavailable"
+          description: "Prometheus has been unable to scrape {{ $labels.job }} for more than two minutes."
+
+      - alert: CampusTradeHighErrorRate
+        expr: |
+          sum by (job) (rate(http_requests_total{status_code=~"5.."}[5m]))
+          /
+          clamp_min(sum by (job) (rate(http_requests_total[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP error rate"
+          description: "More than 5% of requests to {{ $labels.job }} have returned 5xx responses for five minutes."
+
+      - alert: CampusTradeHighP95Latency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (job, le) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request latency"
+          description: "The p95 request latency for {{ $labels.job }} has exceeded one second for ten minutes."
+
+  - name: vm-capacity
+    rules:
+      - alert: CampusTradeHostLowDiskSpace
+        expr: |
+          100 * node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}
+          / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} < 15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "VM disk space is low"
+          description: "Less than 15% disk space remains on {{ $labels.mountpoint }}."
+
+      - alert: CampusTradeHostHighMemoryUsage
+        expr: 100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "VM memory usage is high"
+          description: "Memory usage has exceeded 90% for ten minutes."

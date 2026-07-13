@@ -299,4 +299,8 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-init();
+if (process.env.NODE_ENV !== 'test') {
+  init();
+}
+
+module.exports = app;

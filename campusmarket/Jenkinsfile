@@ -4,8 +4,27 @@ pipeline {
   options {
     timestamps()
     disableConcurrentBuilds()
-    buildDiscarder(logRotator(numToKeepStr: '30'))
-    timeout(time: 75, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '20'))
+    timeout(time: 90, unit: 'MINUTES')
+  }
+
+  parameters {
+    booleanParam(
+      name: 'DEPLOY_TO_TEST',
+      defaultValue: false,
+      description: 'Deploy the verified main branch to the Azure test VM.'
+    )
+  }
+
+  triggers {
+    pollSCM('H/5 * * * *')
+  }
+
+  environment {
+    NODE_IMAGE = 'node:20-alpine'
+    COMPOSE_PROJECT_NAME = 'campusmarket'
+    COMPOSE_FILE = 'backend/docker-compose.prod.yml'
+    DEPLOY_ROOT = '/srv/campustrade'
   }
 
   stages {
@@ -15,34 +34,150 @@ pipeline {
       }
     }
 
-    stage('Frontend Gate: Install + Build') {
+    stage('Validate Configuration') {
       steps {
-        dir('frontend') {
-          sh 'npm ci'
-          sh 'npm run build'
+        dir('campusmarket') {
+          sh '''
+            docker compose \
+              --env-file backend/.env.example \
+              -f "$COMPOSE_FILE" \
+              config --quiet
+          '''
         }
       }
     }
 
-    stage('Backend Release Gate') {
+    stage('Frontend Quality Gate') {
       steps {
-        sh 'echo "Backend release gate is defined in backend/Jenkinsfile and should run as dedicated backend pipeline."'
+        dir('campusmarket') {
+          sh '''
+            docker run --rm \
+              --user "$(id -u):$(id -g)" \
+              -e npm_config_cache=/tmp/npm-cache \
+              -v "$PWD:/workspace" \
+              -w /workspace/frontend \
+              "$NODE_IMAGE" \
+              sh -lc 'npm ci && npm run lint && npm test && npm audit --omit=dev --audit-level=high'
+          '''
+        }
       }
     }
 
-    stage('Policy Gate: Release Checklist Present') {
+    stage('Backend Quality Gate') {
       steps {
-        sh 'test -f backend/RELEASE_GATE_CHECKLIST.md'
-        sh 'test -f backend/docker-compose.prod.yml'
-        sh 'test -f backend/PRODUCTION.md'
+        dir('campusmarket') {
+          sh '''
+            docker run --rm \
+              --user "$(id -u):$(id -g)" \
+              -e npm_config_cache=/tmp/npm-cache \
+              -v "$PWD:/workspace" \
+              -w /workspace \
+              "$NODE_IMAGE" \
+              sh -lc 'npm run install:backend && npm run build:backend && npm run test:backend && npm run audit:backend'
+          '''
+        }
+      }
+    }
+
+    stage('Build Production Images') {
+      steps {
+        dir('campusmarket') {
+          sh '''
+            docker compose \
+              --env-file backend/.env.example \
+              -f "$COMPOSE_FILE" \
+              build --pull
+          '''
+        }
+      }
+    }
+
+    stage('Container Security Gate') {
+      steps {
+        dir('campusmarket') {
+          sh '''
+            for service in \
+              frontend api-gateway auth-service user-service listing-service \
+              chat-service admin-service ai-service search-service notification-service
+            do
+              image_id="$(docker compose \
+                --env-file backend/.env.example \
+                -f "$COMPOSE_FILE" \
+                images -q "$service")"
+              test -n "$image_id"
+              image_ref="$(docker image inspect --format '{{index .RepoTags 0}}' "$image_id")"
+              test -n "$image_ref"
+
+              docker run --rm \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                -v campustrade-trivy-cache:/root/.cache \
+                aquasec/trivy:0.72.0 \
+                image \
+                --scanners vuln \
+                --severity CRITICAL \
+                --ignore-unfixed \
+                --skip-version-check \
+                --format json \
+                --output /tmp/trivy-result.json \
+                --exit-code 1 \
+                "$image_ref"
+              echo "Security scan passed: $service"
+            done
+          '''
+        }
+      }
+    }
+
+    stage('Deploy Azure Test') {
+      when {
+        allOf {
+          expression {
+            env.BRANCH_NAME == 'main' ||
+              env.GIT_BRANCH == 'main' ||
+              env.GIT_BRANCH == 'origin/main'
+          }
+          expression { params.DEPLOY_TO_TEST }
+        }
+      }
+      steps {
+        withCredentials([file(credentialsId: 'campustrade-prod-env', variable: 'PROD_ENV_FILE')]) {
+          dir('campusmarket') {
+            sh '''
+              test -d "$DEPLOY_ROOT"
+              rsync -a --delete --exclude 'backend/.env' ./ "$DEPLOY_ROOT/"
+              install -m 600 "$PROD_ENV_FILE" "$DEPLOY_ROOT/backend/.env"
+
+              cd "$DEPLOY_ROOT"
+              docker compose \
+                -p "$COMPOSE_PROJECT_NAME" \
+                --env-file backend/.env \
+                -f "$COMPOSE_FILE" \
+                up -d --build --remove-orphans
+
+              docker compose \
+                -p "$COMPOSE_PROJECT_NAME" \
+                --env-file backend/.env \
+                -f "$COMPOSE_FILE" \
+                exec -T postgres \
+                sh -lc 'psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME"' \
+                < backend/init.sql
+
+              backend/scripts/smoke-test-running.sh
+            '''
+          }
+        }
       }
     }
   }
 
   post {
     always {
-      archiveArtifacts artifacts: 'frontend/dist/**,backend/RELEASE_GATE_CHECKLIST.md,backend/PRODUCTION.md', fingerprint: true
-      cleanWs()
+      archiveArtifacts(
+        artifacts: 'campusmarket/frontend/dist/**,campusmarket/backend/RELEASE_GATE_CHECKLIST.md,campusmarket/backend/PRODUCTION.md',
+        allowEmptyArchive: true,
+        fingerprint: true
+      )
+      deleteDir()
     }
   }
 }

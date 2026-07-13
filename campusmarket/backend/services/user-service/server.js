@@ -22,7 +22,7 @@ app.use(express.json());
 app.use(metricsMiddleware);
 
 // GET /api/users/:id — public profile
-app.get('/api/users/:id', asyncHandler(async (req, res) => {
+app.get('/api/users/:id([0-9a-fA-F-]{36})', asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!validateUUID(id)) throw new AppError('Invalid user ID', 400);
 
@@ -78,7 +78,7 @@ app.patch('/api/users/me', authenticate, asyncHandler(async (req, res) => {
 }));
 
 // POST /api/users/:id/reviews — leave a review
-app.post('/api/users/:id/reviews', authenticate, asyncHandler(async (req, res) => {
+app.post('/api/users/:id([0-9a-fA-F-]{36})/reviews', authenticate, asyncHandler(async (req, res) => {
   const { rating, comment } = req.body;
   const sellerId = req.params.id;
   if (!validateUUID(sellerId)) throw new AppError('Invalid seller ID', 400);
@@ -206,4 +206,8 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-init();
+if (process.env.NODE_ENV !== 'test') {
+  init();
+}
+
+module.exports = app;

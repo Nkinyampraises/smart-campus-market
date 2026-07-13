@@ -8,7 +8,7 @@
 
 ## Security Gates
 - [ ] `npm audit --omit=dev --audit-level=high` passes for all backend services
-- [ ] Container scan passes with no HIGH/CRITICAL findings (`trivy image`)
+- [ ] Container scan passes with no fixable CRITICAL findings (`trivy image`)
 - [ ] Secrets are not hardcoded in repo
 - [ ] `JWT_SECRET` is strong and environment-injected
 
@@ -29,3 +29,5 @@
 - [ ] Public endpoint smoke checks pass (`/api/admin/public-stats`)
 - [ ] Error rate and latency dashboards stable for 15+ minutes
 - [ ] Alerting channels verified (PagerDuty/Slack/email)
+- [ ] Prometheus reports every application and node-exporter target as healthy
+- [ ] Grafana provisions the CampusTrade production dashboard

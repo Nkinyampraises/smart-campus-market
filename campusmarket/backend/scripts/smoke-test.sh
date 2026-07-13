@@ -4,11 +4,16 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
-if [[ ! -f backend/.env ]]; then
-  cp backend/.env.example backend/.env
+ENV_FILE="backend/.env"
+PROJECT_NAME="campusmarket"
+if [[ ! -f "$ENV_FILE" ]]; then
+  cp backend/.env.example "$ENV_FILE"
 fi
 
-docker compose -f backend/docker-compose.prod.yml up -d --build
+docker compose -p "$PROJECT_NAME" --env-file "$ENV_FILE" -f backend/docker-compose.prod.yml up -d --build
+
+docker compose -p "$PROJECT_NAME" --env-file "$ENV_FILE" -f backend/docker-compose.prod.yml exec -T postgres \
+  psql -U "${DB_USER:-campustrade}" -d "${DB_NAME:-campustrade}" < backend/init.sql
 
 check_endpoint() {
   local url="$1"
@@ -21,7 +26,7 @@ check_endpoint() {
     count=$((count + 1))
     if [[ "$count" -ge "$max_retries" ]]; then
       echo "Smoke test failed: $name ($url) not healthy after $((max_retries * delay))s"
-      docker compose -f backend/docker-compose.prod.yml logs --tail=200
+      docker compose -p "$PROJECT_NAME" --env-file "$ENV_FILE" -f backend/docker-compose.prod.yml logs --tail=200
       exit 1
     fi
     sleep "$delay"

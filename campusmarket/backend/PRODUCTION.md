@@ -17,11 +17,29 @@
 cd backend
 cp .env.example .env
 # set strong secrets and real SMTP credentials
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose -p campusmarket -f docker-compose.prod.yml up -d --build
+```
+
+Windows PowerShell quick deploy:
+```powershell
+.\backend\scripts\deploy-prod.ps1
+```
+
+If your environment uses an intercepting proxy/custom CA and Docker image builds fail on npm TLS verification, use:
+```powershell
+.\backend\scripts\deploy-prod.ps1 -DisableStrictSsl
 ```
 
 Production entrypoint:
 - Nginx: `http://<server-ip>:80`
+
+Administrative services are deliberately bound to the VM loopback interface:
+- Grafana: `http://127.0.0.1:3009`
+- Prometheus: `http://127.0.0.1:9090`
+- Jenkins: `http://127.0.0.1:8080`
+
+Do not create public Azure inbound rules for these ports. Use the SSH tunnel
+documented in `OPERATIONS.md`.
 
 Health checks:
 ```bash
@@ -85,3 +103,35 @@ kubectl apply -f backend/k8s/ingress.yml
 - [ ] Store secrets in Vault or cloud secret manager
 - [ ] Enable log shipping and alerting (e.g., Loki/ELK + PagerDuty)
 - [ ] Run `npm audit` and image scanning in CI
+
+## Monitoring
+
+The production Compose stack includes:
+- Prometheus 3.12 with 15-day/5 GB retention
+- Grafana 13 with a provisioned Prometheus data source
+- A provisioned CampusTrade production dashboard
+- Node exporter for VM CPU, memory, filesystem, and network metrics
+- Alerts for service availability, HTTP errors, latency, disk, and memory
+
+Start or update monitoring with the same deployment command:
+
+```bash
+docker compose -p campusmarket --env-file backend/.env \
+  -f backend/docker-compose.prod.yml up -d
+```
+
+The alert rules are evaluated by Prometheus. Production notification delivery
+still requires an Alertmanager destination such as email, Slack, or PagerDuty.
+
+## Jenkins
+
+Install the current Jenkins LTS package on Ubuntu 24.04:
+
+```bash
+chmod +x backend/scripts/install-jenkins-ubuntu.sh
+backend/scripts/install-jenkins-ubuntu.sh
+```
+
+The installer binds Jenkins to `127.0.0.1:8080`, adds the Jenkins service user
+to the Docker group, and creates `/srv/campustrade` for stable deployments.
+See `OPERATIONS.md` for the one-time Jenkins UI configuration.

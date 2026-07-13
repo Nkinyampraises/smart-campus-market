@@ -17,6 +17,8 @@ jest.mock('../../shared/events', () => ({
 
 const pool = require('../../shared/db');
 let app;
+const userId = '11111111-1111-1111-1111-111111111111';
+const listingId = '22222222-2222-2222-2222-222222222222';
 
 beforeAll(async () => {
   process.env.JWT_SECRET = 'test_secret';
@@ -35,19 +37,20 @@ describe('User Service', () => {
 
     it('should return user profile', async () => {
       pool.query.mockResolvedValueOnce({
+        rows: [{ id: userId, role: 'user', is_suspended: false }],
+      });
+      pool.query.mockResolvedValueOnce({
         rows: [{
-          id: 'u1', email: 'test@ictuniversity.edu.cm',
+          id: userId, email: 'test@ictuniversity.edu.cm',
           first_name: 'John', last_name: 'Doe', campus_zone: 'Main',
           is_verified: true, avatar_url: null, created_at: new Date().toISOString(),
         }],
       });
-      pool.query.mockResolvedValueOnce({ rows: [{ count: '5' }] });
-      pool.query.mockResolvedValueOnce({ rows: [{ count: '3' }] });
-      pool.query.mockResolvedValueOnce({ rows: [{ avg: '4.5' }] });
-      pool.query.mockResolvedValueOnce({ rows: [{ count: '2' }] });
-      pool.query.mockResolvedValueOnce({ rows: [] });
+      pool.query.mockResolvedValueOnce({ rows: [{ cnt: 5 }] });
+      pool.query.mockResolvedValueOnce({ rows: [{ cnt: 3 }] });
+      pool.query.mockResolvedValueOnce({ rows: [{ cnt: 2 }] });
 
-      const token = require('jsonwebtoken').sign({ userId: 'u1', role: 'user' }, 'test_secret');
+      const token = require('jsonwebtoken').sign({ userId, role: 'user' }, 'test_secret');
       const res = await request(app)
         .get('/api/users/me')
         .set('Authorization', `Bearer ${token}`);
@@ -60,12 +63,15 @@ describe('User Service', () => {
   describe('GET /api/wishlist', () => {
     it('should return wishlist items', async () => {
       pool.query.mockResolvedValueOnce({
+        rows: [{ id: userId, role: 'user', is_suspended: false }],
+      });
+      pool.query.mockResolvedValueOnce({
         rows: [
-          { id: 'l1', title: 'Book', price_fcfa: 5000, category: 'Textbooks', campus_zone: 'Main', images: [] },
+          { id: listingId, title: 'Book', price_fcfa: 5000, category: 'Textbooks', campus_zone: 'Main', images: [] },
         ],
       });
 
-      const token = require('jsonwebtoken').sign({ userId: 'u1', role: 'user' }, 'test_secret');
+      const token = require('jsonwebtoken').sign({ userId, role: 'user' }, 'test_secret');
       const res = await request(app)
         .get('/api/wishlist')
         .set('Authorization', `Bearer ${token}`);
