@@ -42,18 +42,31 @@ Do not send or screenshot this password. Paste it into the Jenkins page, select
 
 Never commit `backend/.env` to Git.
 
-## Create the pipeline
+## GitHub-connected pipeline
+
+The Azure VM can install the version-controlled job definition at
+`backend/scripts/configure-jenkins-job.groovy`. It creates the
+`campustrade-ci` job, points it at GitHub, and loads the protected production
+environment as the `campustrade-prod-env` secret-file credential. The manual
+steps below are the fallback if the job has not been provisioned.
+
+`backend/scripts/jenkins-campustrade.conf` selects the branch Jenkins checks.
+Change it to `*/main` after the release branch is merged, then reload systemd
+and restart Jenkins.
 
 1. Select **New Item**.
-2. Name it `CampusTrade`.
+2. Name it `campustrade-ci`.
 3. Choose **Pipeline**.
 4. Under **Pipeline**, select **Pipeline script from SCM**.
 5. Choose **Git** and enter the GitHub repository URL.
-6. Set the branch specifier to `*/main`.
+6. Set the branch specifier to `*/main` (or the release branch before it is
+   merged).
 7. Set the script path to `campusmarket/Jenkinsfile`.
 8. Save, then choose **Build Now**.
 
-The pipeline checks GitHub every five minutes. It validates Compose, lints and
+Only Jenkins connects to GitHub. Grafana reads Prometheus, and Prometheus
+scrapes the running application and VM. The pipeline checks GitHub every five
+minutes. It validates Compose, lints and
 builds the frontend, tests every backend service, runs production dependency
 audits, and builds the production images. Deployment runs only from `main` and
 only when the `DEPLOY_TO_TEST` parameter is explicitly enabled.

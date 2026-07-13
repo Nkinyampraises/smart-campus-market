@@ -67,23 +67,13 @@ Run on first deploy:
 psql -U <db_user> -d <db_name> -f backend/init.sql
 ```
 
-## Kubernetes Deployment (Optional)
+## Deployment Target
 
-```bash
-kubectl apply -f backend/k8s/namespace.yml
-kubectl apply -f backend/k8s/configmap.yml
-kubectl apply -f backend/k8s/secret.yml
-kubectl apply -f backend/k8s/auth-service.yml
-kubectl apply -f backend/k8s/user-service.yml
-kubectl apply -f backend/k8s/listing-service.yml
-kubectl apply -f backend/k8s/chat-service.yml
-kubectl apply -f backend/k8s/search-service.yml
-kubectl apply -f backend/k8s/notification-service.yml
-kubectl apply -f backend/k8s/admin-service.yml
-kubectl apply -f backend/k8s/ai-service.yml
-kubectl apply -f backend/k8s/api-gateway.yml
-kubectl apply -f backend/k8s/ingress.yml
-```
+The supported and deployed target is the Azure test VM using
+`backend/docker-compose.prod.yml`. Kubernetes and Ansible are not part of this
+environment. Adding a second orchestrator on the same VM would duplicate the
+application, database, and network entrypoints rather than add missing
+services.
 
 ## Production Hardening Included
 

@@ -21,7 +21,7 @@
 ## Deploy Gates
 - [ ] `docker compose -f backend/docker-compose.prod.yml config` validates
 - [ ] Smoke test script passes (`backend/scripts/smoke-test.sh`)
-- [ ] Kubernetes rollout command succeeds for target namespace
+- [ ] Azure Compose rollout succeeds with all 16 declared services running
 - [ ] Rollback command/procedure is documented and verified
 
 ## Post-Deploy Checks

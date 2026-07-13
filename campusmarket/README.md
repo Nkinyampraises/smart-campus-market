@@ -11,10 +11,9 @@ A full-stack microservices application for campus-based buying and selling.
 - **Real-time**: Socket.IO for chat functionality
 - **Communication**: Redis Pub/Sub events for async service coordination
 - **Containerization**: Docker
-- **Orchestration**: Kubernetes
+- **Orchestration**: Docker Compose on the Azure test VM
 - **CI/CD**: Jenkins
 - **Monitoring**: Prometheus + Grafana
-- **IaC**: Ansible
 
 ## Getting Started
 
@@ -32,9 +31,13 @@ A full-stack microservices application for campus-based buying and selling.
 
 ## Deployment
 
-1. Build all services: `npm run build:all`
-2. Deploy to Kubernetes: Use Ansible playbooks in `ansible/`
-3. CI/CD: Jenkins pipeline in `Jenkinsfile`
+The deployed Azure environment is defined by
+`backend/docker-compose.prod.yml`. Jenkins uses the root `Jenkinsfile` to pull
+the repository from GitHub, run the release gates, and optionally update the
+Azure test VM from `main`.
+
+See `backend/PRODUCTION.md` for deployment and `backend/OPERATIONS.md` for
+Jenkins, Grafana, and Prometheus access.
 
 ## Project Structure
 
@@ -51,12 +54,6 @@ campus-trade/
 │       ├── ai-service/
 │       ├── search-service/
 │       └── notification-service/
-├── k8s/                      # Kubernetes manifests
-├── ansible/                  # Infrastructure as Code
-├── docker/                   # Docker Compose for local dev
-├── docs/                     # Documentation and diagrams
-├── tests/                    # Integration tests
-├── scripts/                  # Helper scripts for monorepo tasks
 ├── Jenkinsfile               # CI/CD pipeline
 └── README.md
 ```

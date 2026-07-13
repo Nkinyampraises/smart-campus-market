@@ -10,9 +10,8 @@ COPY services/${SERVICE_NAME}/package*.json ./
 RUN npm config set strict-ssl ${NPM_CONFIG_STRICT_SSL} \
   && npm ci --omit=dev
 
-# Copy shared event bus and event directory
+# Copy the shared event bus used by the services.
 COPY shared/ ./shared/
-COPY event/ ./event/
 
 # Copy service source code
 COPY services/${SERVICE_NAME}/ ./services/${SERVICE_NAME}/
