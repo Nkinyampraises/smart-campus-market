@@ -157,7 +157,7 @@ pipeline {
                 --env-file backend/.env \
                 -f "$COMPOSE_FILE" \
                 exec -T postgres \
-                sh -lc 'psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME"' \
+                sh -lc 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
                 < backend/init.sql
 
               backend/scripts/smoke-test-running.sh
