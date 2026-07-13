@@ -82,6 +82,11 @@ the provisioned dashboard in the Grafana UI.
 
 ## Routine checks
 
+To synchronize a reviewed GitHub branch to the current Azure test deployment,
+run `backend/scripts/sync-and-deploy-azure.sh`. The script accepts the branch
+name as its first argument, preserves `backend/.env`, rebuilds the Compose
+stack, reapplies the idempotent database initialization, and runs smoke tests.
+
 From the deployment directory on the VM:
 
 ```bash
