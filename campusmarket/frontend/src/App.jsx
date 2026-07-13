@@ -2,12 +2,14 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // Providers
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { SocketProvider } from './context/SocketContext';
+import { usePushNotifications } from './hooks/usePushNotifications';
 
 // Guards
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
 
 // Auth Pages
 import Login from './pages/Login';
@@ -55,17 +57,28 @@ import AdminListings from './pages/AdminListings';
 import AdminReports from './pages/AdminReports';
 import AdminFraud from './pages/AdminFraud';
 
+// About Page
+import About from './pages/About';
+
 // Error Pages
 import NotFound from './pages/NotFound';
 import Forbidden from './pages/Forbidden';
 import Suspended from './pages/Suspended';
 
+// Activates push notifications once user is logged in
+function AppWithPush({ children }) {
+  const { isLoggedIn } = useAuth();
+  usePushNotifications(isLoggedIn);
+  return children;
+}
+
 function App() {
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <ToastProvider>
           <SocketProvider>
+            <AppWithPush>
             <Routes>
             {/* Root → Home */}
             <Route path="/" element={<Navigate to="/home" replace />} />
@@ -81,6 +94,7 @@ function App() {
 
             {/* Main App Routes (home & browse are public landing pages) */}
             <Route path="/home" element={<Home />} />
+            <Route path="/about" element={<About />} />
             <Route path="/browse" element={<Browse />} />
             <Route path="/search" element={<ProtectedRoute><Search /></ProtectedRoute>} />
             <Route path="/listing/:id" element={<ProtectedRoute><ListingDetail /></ProtectedRoute>} />
@@ -110,11 +124,11 @@ function App() {
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
 
             {/* Admin Routes */}
-            <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-            <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
-            <Route path="/admin/listings" element={<ProtectedRoute><AdminListings /></ProtectedRoute>} />
-            <Route path="/admin/reports" element={<ProtectedRoute><AdminReports /></ProtectedRoute>} />
-            <Route path="/admin/fraud" element={<ProtectedRoute><AdminFraud /></ProtectedRoute>} />
+            <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+            <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+            <Route path="/admin/listings" element={<AdminRoute><AdminListings /></AdminRoute>} />
+            <Route path="/admin/reports" element={<AdminRoute><AdminReports /></AdminRoute>} />
+            <Route path="/admin/fraud" element={<AdminRoute><AdminFraud /></AdminRoute>} />
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
 
             {/* Error / Status Pages */}
@@ -124,6 +138,7 @@ function App() {
             {/* Catch-all → Not Found */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+            </AppWithPush>
           </SocketProvider>
         </ToastProvider>
       </AuthProvider>

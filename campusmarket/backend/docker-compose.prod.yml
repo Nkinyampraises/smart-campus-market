@@ -78,6 +78,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
       JWT_SECRET: ${JWT_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       FRONTEND_URL: ${FRONTEND_URL}
@@ -226,6 +227,9 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
       FROM_EMAIL: ${FROM_EMAIL}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_EMAIL: ${VAPID_EMAIL}
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -241,6 +245,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${FRONTEND_URL}
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]

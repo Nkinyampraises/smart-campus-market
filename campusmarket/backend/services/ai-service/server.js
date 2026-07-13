@@ -18,6 +18,24 @@ const CONDITION_FACTORS = { new: 1.0, 'like new': 0.9, 'excellent condition': 0.
 let redis;
 let server;
 
+// Minimum reference prices per category (FCFA) — used when no sales data exists
+const CATEGORY_MIN_PRICES = {
+  Electronics:    2000,
+  Clothing:       2000,
+  Services:       1000,
+  Accessories:     500,
+  Cosmetics:       500,
+  Perfumes:        250,
+  Bracelets:       100,
+  'Fruit Salad':   500,
+  Juice:           350,
+  'Pancake/Cake':  250,
+  Shawarma:        500,
+  Shoes:          1500,
+  'Liquid Soap':  2000,
+  default:         250,
+};
+
 collectDefaultMetrics();
 app.use(helmet());
 app.use(cors());
@@ -42,7 +60,7 @@ async function getCategoryAvgPrice(category) {
   if (cached) return JSON.parse(cached);
 
   const result = await pool.query(
-    "SELECT AVG(price_fcfa)::float as avg, COUNT(*)::int as cnt FROM transactions WHERE listing_id IN (SELECT id FROM listings WHERE category=$1) AND completed_at > NOW() - INTERVAL '90 days'",
+    "SELECT AVG(final_price)::float as avg, COUNT(*)::int as cnt FROM transactions WHERE listing_id IN (SELECT id FROM listings WHERE category=$1) AND completed_at > NOW() - INTERVAL '90 days'",
     [category]
   );
   const data = { avg: result.rows[0].avg || 0, count: result.rows[0].cnt || 0 };
@@ -82,16 +100,28 @@ app.post('/api/ai/fraud-check', asyncHandler(async (req, res) => {
   const { avg } = await getCategoryAvgPrice(category);
   const flags = [];
 
-  // Rule 1: Price < 30% of category average
-  if (avg > 0 && price_fcfa < avg * 0.30) {
+  // Use transaction average OR hardcoded market minimum — whichever is higher
+  const refPrice = Math.max(avg || 0, CATEGORY_MIN_PRICES[category] || CATEGORY_MIN_PRICES.default);
+
+  // Rule 1: Price < 60% of reference price — suspiciously low
+  if (price_fcfa < refPrice * 0.60) {
     flags.push({
       type: EVENT_TYPES.LOW_PRICE_FLAG,
-      rule: `Price ${Math.round((price_fcfa / avg) * 100)}% below 90-day category average`,
+      rule: `Price is only ${Math.round((price_fcfa / refPrice) * 100)}% of market reference for ${category} (ref: ${refPrice.toLocaleString()} FCFA) — suspiciously low`,
       listingId, sellerId
     });
   }
 
-  // Rule 2: Spam rate (>10 listings in 60 minutes)
+  // Rule 2: Price > 8x reference price — suspiciously high
+  if (price_fcfa > refPrice * 8) {
+    flags.push({
+      type: EVENT_TYPES.HIGH_PRICE_FLAG,
+      rule: `Price ${Math.round((price_fcfa / refPrice) * 100)}% above market reference for ${category} (ref: ${refPrice.toLocaleString()} FCFA) — suspiciously high`,
+      listingId, sellerId
+    });
+  }
+
+  // Rule 3: Spam rate (>10 listings in 60 minutes)
   const recentCount = await pool.query(
     "SELECT COUNT(*)::int as cnt FROM listings WHERE seller_id=$1 AND created_at > NOW() - INTERVAL '60 minutes'",
     [sellerId]
@@ -194,10 +224,21 @@ async function setupEventHandlers() {
     if (event.type === EVENT_TYPES.LISTING_CREATED) {
       try {
         const { avg } = await getCategoryAvgPrice(event.category);
-        if (avg > 0 && event.price_fcfa < avg * 0.30) {
+        const refPrice = Math.max(avg || 0, CATEGORY_MIN_PRICES[event.category] || CATEGORY_MIN_PRICES.default);
+
+        if (event.price_fcfa < refPrice * 0.60) {
           await publishEvent(EVENT_CHANNELS.AUDIT, {
             type: EVENT_TYPES.LOW_PRICE_FLAG,
-            rule: `Price ${Math.round((event.price_fcfa / avg) * 100)}% below 90-day category average`,
+            rule: `Price is only ${Math.round((event.price_fcfa / refPrice) * 100)}% of market reference for ${event.category} (ref: ${refPrice.toLocaleString()} FCFA) — suspiciously low`,
+            listingId: event.listingId,
+            sellerId: event.sellerId
+          });
+        }
+
+        if (event.price_fcfa > refPrice * 8) {
+          await publishEvent(EVENT_CHANNELS.AUDIT, {
+            type: EVENT_TYPES.HIGH_PRICE_FLAG,
+            rule: `Price ${Math.round((event.price_fcfa / refPrice) * 100)}% above market reference for ${event.category} (ref: ${refPrice.toLocaleString()} FCFA) — suspiciously high`,
             listingId: event.listingId,
             sellerId: event.sellerId
           });

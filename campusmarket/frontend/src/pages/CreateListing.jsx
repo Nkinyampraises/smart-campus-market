@@ -4,33 +4,52 @@ import Topbar from '../components/Topbar';
 import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
 
-const CATEGORIES = ['Textbooks', 'Electronics', 'Housing', 'Clothing', 'Services', 'Accessories'];
+const CATEGORIES = ['Electronics', 'Clothing', 'Services', 'Accessories', 'Cosmetics', 'Perfumes', 'Bracelets', 'Fruit Salad', 'Juice', 'Pancake/Cake', 'Shawarma', 'Shoes', 'Liquid Soap'];
 const CONDITIONS = ['New / Unopened', 'Excellent Condition', 'Good Condition', 'Used', 'For Parts'];
 const CAMPUS_ZONES = [
-  { id: 'engineering', label: 'Engineering Block', icon: 'engineering' },
-  { id: 'main-library', label: 'Main Library', icon: 'local_library' },
-  { id: 'dining-hall', label: 'Dining Hall', icon: 'restaurant' },
-  { id: 'student-union', label: 'Student Union', icon: 'groups' },
-  { id: 'rec-center', label: 'Rec Center', icon: 'sports_soccer' },
-  { id: 'dorm-area', label: 'Dorm Area', icon: 'home' },
+  { id: 'canteen',        label: 'Canteen',          icon: 'restaurant'       },
+  { id: 'chumbuw-hall',   label: 'Chumbuw Hall',     icon: 'meeting_room'     },
+  { id: 'eric-mbarika',   label: 'Eric Mbarika',     icon: 'school'           },
+  { id: 'george-mbarika', label: 'George Mbarika',   icon: 'school'           },
+  { id: 'pondi-hall',     label: 'Pondi Hall',       icon: 'apartment'        },
+  { id: 'linda-terry',    label: 'Linda Terry Hall', icon: 'meeting_room'     },
+  { id: 'it-hall',        label: 'IT Hall',          icon: 'computer'         },
+  { id: 'chapel',         label: 'Chapel',           icon: 'church'           },
+  { id: 'french-hall',    label: 'French Hall',      icon: 'translate'        },
+  { id: 'cisco-lab',      label: 'Cisco Lab',        icon: 'router'           },
+  { id: 'computer-lab',   label: 'Computer Lab',     icon: 'desktop_windows'  },
 ];
 
 const PRICE_SUGGESTIONS = {
-  Textbooks: { min: 5000, max: 36000 },
-  Electronics: { min: 60000, max: 300000 },
-  Housing: { min: 30000, max: 120000 },
-  Clothing: { min: 5000, max: 30000 },
-  Services: { min: 10000, max: 60000 },
-  Accessories: { min: 5000, max: 50000 },
+  Electronics:   { min: 2000,   max: 500000 },
+  Clothing:      { min: 2000,   max: 30000  },
+  Services:      { min: 1000,   max: 60000  },
+  Accessories:   { min: 500,    max: 50000  },
+  Cosmetics:     { min: 500,    max: 15000  },
+  Perfumes:      { min: 250,    max: 10000  },
+  Bracelets:     { min: 100,    max: 5000   },
+  'Fruit Salad': { min: 500,    max: 1000   },
+  Juice:         { min: 350,    max: 1500   },
+  'Pancake/Cake':{ min: 250,    max: 5000   },
+  Shawarma:      { min: 500,    max: 2000   },
+  Shoes:         { min: 1500,   max: 15000  },
+  'Liquid Soap': { min: 500,    max: 5000   },
 };
 
 const DEFAULT_IMAGES = {
-  Textbooks: 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=400&h=300&fit=crop',
-  Electronics: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400&h=300&fit=crop',
-  Housing: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400&h=300&fit=crop',
-  Clothing: 'https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=400&h=300&fit=crop',
-  Services: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=400&h=300&fit=crop',
-  Accessories: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop',
+  Electronics:   'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400&h=300&fit=crop',
+  Clothing:      'https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=400&h=300&fit=crop',
+  Services:      'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=400&h=300&fit=crop',
+  Accessories:   'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop',
+  Cosmetics:     'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=300&fit=crop',
+  Perfumes:      'https://images.unsplash.com/photo-1541643600914-78b084683702?w=400&h=300&fit=crop',
+  Bracelets:     'https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=400&h=300&fit=crop',
+  'Fruit Salad': 'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=400&h=300&fit=crop',
+  Juice:         'https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=400&h=300&fit=crop',
+  'Pancake/Cake':'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=400&h=300&fit=crop',
+  Shawarma:      'https://images.unsplash.com/photo-1551248429-40975aa4de74?w=400&h=300&fit=crop',
+  Shoes:         'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=300&fit=crop',
+  'Liquid Soap': 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=400&h=300&fit=crop',
 };
 
 const fmtFCFA = (n) => Number(n).toLocaleString('fr-FR') + ' FCFA';
@@ -44,7 +63,7 @@ const CreateListing = () => {
   const [form, setForm] = useState({
     title: '',
     description: '',
-    category: 'Textbooks',
+    category: 'Electronics',
     condition: 'Good Condition',
     price: '',
     campusZone: 'engineering',
@@ -63,10 +82,14 @@ const CreateListing = () => {
   };
 
   const handleFiles = (files) => {
-    const newPreviews = Array.from(files)
-      .slice(0, 5 - previews.length)
-      .map((f) => URL.createObjectURL(f));
-    setPreviews((prev) => [...prev, ...newPreviews].slice(0, 5));
+    const fileArray = Array.from(files).slice(0, 5 - previews.length);
+    fileArray.forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviews((prev) => [...prev, reader.result].slice(0, 5));
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
   const validate = () => {

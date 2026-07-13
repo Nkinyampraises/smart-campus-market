@@ -51,13 +51,16 @@ docker compose -f docker-compose.prod.yml logs -f api-gateway
 
 Set these in `backend/.env`:
 - `JWT_SECRET` (64+ random chars)
+- `GOOGLE_CLIENT_ID` (the same OAuth web client ID used by the frontend)
 - `DB_USER`, `DB_PASSWORD`, `DB_NAME`
 - `FRONTEND_URL` (real frontend origin)
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `FROM_EMAIL`
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL` for browser push notifications
 
 Generate strong secrets:
 ```bash
 openssl rand -base64 64
+npx web-push generate-vapid-keys
 ```
 
 ## Database Setup

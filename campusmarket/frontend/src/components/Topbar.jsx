@@ -29,7 +29,7 @@ const Topbar = ({ activePage }) => {
   const handleLogout = () => {
     logout();
     showToast('Logged out successfully', 'neutral');
-    navigate('/home');
+    window.location.href = '/home';
   };
 
   const isActive = (page) => activePage === page;
@@ -70,6 +70,16 @@ const Topbar = ({ activePage }) => {
           >
             Marketplace
           </Link>
+          <Link
+            to="/about"
+            className={`px-3 py-2 rounded-lg font-semibold text-[14px] no-underline transition-colors ${
+              isActive('about')
+                ? 'text-[#ff6b1a] font-bold'
+                : 'text-gray-600 hover:text-[#ff6b1a] hover:bg-orange-50'
+            }`}
+          >
+            About
+          </Link>
 
           {isLoggedIn ? (
             <>
@@ -104,10 +114,14 @@ const Topbar = ({ activePage }) => {
               <div className="relative ml-1">
                 <button
                   onClick={() => setShowUserMenu((v) => !v)}
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black text-[12px] border-2 border-white shadow-sm hover:opacity-90 transition-opacity"
-                  style={{ backgroundColor: user?.color || '#ff6b1a' }}
+                  className="w-9 h-9 rounded-full overflow-hidden border-2 border-white shadow-sm hover:opacity-90 transition-opacity flex items-center justify-center text-white font-black text-[12px]"
+                  style={{ backgroundColor: user?.avatar_url ? 'transparent' : '#ff6b1a' }}
                 >
-                  {user?.initials || 'ME'}
+                  {user?.avatar_url ? (
+                    <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    (user?.first_name?.[0] || '') + (user?.last_name?.[0] || '') || user?.email?.[0]?.toUpperCase() || 'ME'
+                  )}
                 </button>
 
                 {showUserMenu && (
@@ -121,6 +135,17 @@ const Topbar = ({ activePage }) => {
                         <p className="font-bold text-[14px] text-[#1b1c1c]">{user?.name}</p>
                         <p className="text-[12px] text-gray-400 truncate">{user?.email}</p>
                       </div>
+                      {/* Admin shortcut */}
+                      {user?.role === 'admin' && (
+                        <Link
+                          to="/admin/dashboard"
+                          onClick={() => setShowUserMenu(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-[14px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 no-underline transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+                          Admin Dashboard
+                        </Link>
+                      )}
                       {[
                         { label: 'My Profile', icon: 'person', link: '/my-profile' },
                         { label: 'My Listings', icon: 'list_alt', link: '/my-listings' },

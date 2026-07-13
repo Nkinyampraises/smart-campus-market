@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AdminSidebar from '../components/AdminSidebar';
+import AdminLayout from '../components/AdminLayout';
 import { api } from '../services/api';
 import { formatFCFA } from '../utils/format';
 
@@ -19,9 +19,8 @@ const AdminListings = () => {
     s === 'sold' ? 'bg-gray-100 text-gray-500' : 'bg-red-100 text-red-600';
 
   return (
-    <div className="min-h-screen bg-[#fcf9f8] flex">
-      <AdminSidebar activePage="listings" />
-      <main className="flex-1 p-8">
+    <AdminLayout>
+      <div className="max-w-[1400px] mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-[28px] font-black text-[#1b1c1c]">Listings</h1>
           <input type="text" placeholder="Search listings…" value={search} onChange={(e) => setSearch(e.target.value)}
@@ -54,8 +53,8 @@ const AdminListings = () => {
             {filtered.length === 0 && <p className="text-center text-gray-400 py-10">No listings found</p>}
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 };
 

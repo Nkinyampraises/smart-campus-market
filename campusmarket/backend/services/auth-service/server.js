@@ -6,6 +6,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { collectDefaultMetrics, register } = require('prom-client');
+const { OAuth2Client } = require('google-auth-library');
 
 const pool = require('../../shared/db');
 const { validateEmail, validatePassword, sanitizeString } = require('../../shared/validate');
@@ -18,6 +19,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET;
 const SALT_ROUNDS = 12;
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 let server;
 
 collectDefaultMetrics();
@@ -35,7 +37,7 @@ const authLimiter = rateLimit({
   message: { error: 'Too many authentication attempts, please try again later.' },
 });
 
-const emailRegex = /^[a-zA-Z0-9._%+-]+@ictuniversity\.edu\.cm$/;
+const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 // POST /api/auth/register
 app.post('/api/auth/register', authLimiter, asyncHandler(async (req, res) => {
@@ -53,13 +55,11 @@ app.post('/api/auth/register', authLimiter, asyncHandler(async (req, res) => {
   const passwordHash = await bcrypt.hash(pwCheck.value, SALT_ROUNDS);
 
   const result = await pool.query(
-    'INSERT INTO users (email, password_hash, first_name, last_name, campus_zone, created_at) VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING id',
+    'INSERT INTO users (email, password_hash, first_name, last_name, campus_zone, is_verified, created_at) VALUES ($1,$2,$3,$4,$5,TRUE,NOW()) RETURNING id',
     [emailCheck.value, passwordHash, sanitizeString(first_name, 100), sanitizeString(last_name, 100), sanitizeString(campus_zone, 100)]
   );
 
   const userId = result.rows[0].id;
-  const verificationToken = jwt.sign({ userId, type: 'verify' }, JWT_SECRET, { expiresIn: '24h' });
-  await pool.query('UPDATE users SET verification_token=$1 WHERE id=$2', [verificationToken, userId]);
 
   await publishEvent(EVENT_CHANNELS.USER, {
     type: EVENT_TYPES.USER_REGISTERED,
@@ -68,14 +68,8 @@ app.post('/api/auth/register', authLimiter, asyncHandler(async (req, res) => {
     timestamp: new Date().toISOString()
   });
 
-  await publishEvent(EVENT_CHANNELS.NOTIFICATION, {
-    type: EVENT_TYPES.WELCOME_EMAIL,
-    userId, email: emailCheck.value,
-    payload: { verificationToken }
-  });
-
   logger.info('User registered', { userId, email: emailCheck.value });
-  res.status(201).json({ message: 'User registered successfully. Please check your email for verification.', userId });
+  res.status(201).json({ message: 'Account created successfully! You can now log in.', userId });
 }));
 
 // POST /api/auth/login
@@ -95,7 +89,6 @@ app.post('/api/auth/login', authLimiter, asyncHandler(async (req, res) => {
   const validPw = await bcrypt.compare(password, user.password_hash);
   if (!validPw) throw new AppError('Invalid credentials', 401);
 
-  if (!user.is_verified) throw new AppError('Please verify your email first', 403);
   if (user.is_suspended) throw new AppError(`Account suspended: ${user.suspended_reason || 'No reason given'}`, 403);
 
   const accessToken = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
@@ -124,6 +117,48 @@ app.post('/api/auth/logout', asyncHandler(async (req, res) => {
   } catch {}
 
   res.json({ message: 'Logged out successfully' });
+}));
+
+// POST /api/auth/google — Google OAuth sign-in / sign-up
+app.post('/api/auth/google', asyncHandler(async (req, res) => {
+  const { credential } = req.body;
+  if (!credential) throw new AppError('Google credential required', 400);
+
+  // Verify ID token via Google tokeninfo API (no local cert download needed)
+  const tokenInfoRes = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`
+  );
+  if (!tokenInfoRes.ok) throw new AppError('Invalid Google token', 401);
+  const payload = await tokenInfoRes.json();
+  if (payload.aud !== process.env.GOOGLE_CLIENT_ID) throw new AppError('Token audience mismatch', 401);
+
+  const { email, given_name, family_name, picture } = payload;
+
+  if (!email) throw new AppError('No email in Google account', 400);
+
+  // Find existing user or create new one
+  let result = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+
+  if (result.rows.length === 0) {
+    // New user — create auto-verified (Google already verified their email)
+    result = await pool.query(
+      'INSERT INTO users (email, first_name, last_name, avatar_url, is_verified, created_at) VALUES ($1,$2,$3,$4,TRUE,NOW()) RETURNING *',
+      [email, given_name || '', family_name || '', picture || null]
+    );
+    logger.info('New user via Google OAuth', { email });
+  }
+
+  const user = result.rows[0];
+  if (user.is_suspended) throw new AppError(`Account suspended: ${user.suspended_reason || 'Violation'}`, 403);
+
+  // Issue JWT same as regular login
+  const accessToken = jwt.sign({ userId: user.id, role: user.role || 'user' }, JWT_SECRET, { expiresIn: '24h' });
+
+  logger.info('Google OAuth login', { userId: user.id, email });
+  res.json({
+    accessToken,
+    user: { id: user.id, email: user.email, firstName: user.first_name, lastName: user.last_name },
+  });
 }));
 
 // POST /api/auth/refresh
@@ -299,8 +334,7 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-if (process.env.NODE_ENV !== 'test') {
-  init();
-}
-
 module.exports = app;
+module.exports._init = init;
+module.exports._shutdown = shutdown;
+if (require.main === module) { init(); }

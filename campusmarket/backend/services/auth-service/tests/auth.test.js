@@ -8,7 +8,7 @@ jest.mock('pg', () => {
   const mockPool = { query: jest.fn() };
   return { Pool: jest.fn(() => mockPool) };
 });
-jest.mock('../../../shared/events', () => ({
+jest.mock('../../shared/events', () => ({
   initRedis: jest.fn().mockResolvedValue(true),
   publishEvent: jest.fn().mockResolvedValue(true),
   subscribeToEvents: jest.fn().mockResolvedValue(true),
@@ -60,10 +60,7 @@ app.post('/api/auth/login', async (req, res) => {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('Auth Service — Registration', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockPool.query.mockReset();
-  });
+  beforeEach(() => jest.clearAllMocks());
 
   it('registers a new user successfully', async () => {
     mockPool.query
@@ -110,10 +107,7 @@ describe('Auth Service — Registration', () => {
 });
 
 describe('Auth Service — Login', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockPool.query.mockReset();
-  });
+  beforeEach(() => jest.clearAllMocks());
 
   it('logs in a verified user and returns access token', async () => {
     const hash = await bcrypt.hash('Password123!', 12);
@@ -167,12 +161,9 @@ describe('Auth Service — Login', () => {
 });
 
 describe('Auth Service — Event Publishing', () => {
-  const { publishEvent, EVENT_CHANNELS, EVENT_TYPES } = require('../../../shared/events');
+  const { publishEvent, EVENT_CHANNELS, EVENT_TYPES } = require('../../shared/events');
 
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockPool.query.mockReset();
-  });
+  beforeEach(() => jest.clearAllMocks());
 
   it('publishes USER_REGISTERED event on successful registration', async () => {
     mockPool.query

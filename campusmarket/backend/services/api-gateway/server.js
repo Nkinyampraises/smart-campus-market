@@ -15,11 +15,15 @@ const PORT = process.env.PORT || 3000;
 
 app.disable('x-powered-by');
 
+// Support a comma-separated FRONTEND_URL list for trusted production and local origins.
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',').map(o => o.trim());
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      connectSrc: ["'self'", process.env.FRONTEND_URL || 'http://localhost:5173', 'ws:', 'wss:'],
+      connectSrc: ["'self'", ...allowedOrigins, 'ws:', 'wss:'],
     },
   },
   hsts: {
@@ -53,11 +57,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Body size limits
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+// NOTE: Do NOT parse body here — proxy must forward raw body to downstream services
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Authorization', 'Content-Type', 'X-User-Id'],
@@ -71,7 +76,8 @@ app.use(limiter);
 
 // Per-route stricter rate limiters
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many auth attempts, please try again later' } });
-const strictLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 50 });
+const strictLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500 });
+const adminLimiter  = rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 });
 
 // Service URLs (from env or defaults)
 const SERVICES = {
@@ -98,14 +104,16 @@ const attachUser = (req, _res, next) => {
 };
 app.use(attachUser);
 
-// Helper: proxy factory with WS support
+// Helper: proxy factory — streams raw body to downstream service
 const proxy = (target, opts = {}) =>
   createProxyMiddleware({
     target, changeOrigin: true,
-    ws: true, // enable WebSocket proxying
-    onError: (err, _req, res) => {
-      logger.error('Proxy error', { error: err.message, target });
-      if (res && !res.headersSent) res.status(502).json({ error: 'Service temporarily unavailable' });
+    ws: true,
+    on: {
+      error: (err, _req, res) => {
+        logger.error('Proxy error', { error: err.message, target });
+        if (res && !res.headersSent) res.status(502).json({ error: 'Service temporarily unavailable' });
+      },
     },
     ...opts,
   });
@@ -128,7 +136,7 @@ app.use('/api/conversations', proxy(SERVICES.chat));
 app.use('/api/offers', proxy(SERVICES.chat));
 
 // Admin service
-app.use('/api/admin', strictLimiter, proxy(SERVICES.admin));
+app.use('/api/admin', adminLimiter, proxy(SERVICES.admin));
 
 // AI service
 app.use('/api/ai', proxy(SERVICES.ai));
@@ -162,23 +170,26 @@ app.use((err, _req, res, _next) => {
   if (!res.headersSent) res.status(500).json({ error: 'Internal gateway error' });
 });
 
-const server = app.listen(PORT, () => {
-  logger.info(`API Gateway running on port ${PORT}`);
-  logger.info('Routing to services', SERVICES);
-});
+let server;
+if (process.env.NODE_ENV !== 'test') {
+  server = app.listen(PORT, () => {
+    logger.info(`API Gateway running on port ${PORT}`);
+    logger.info('Routing to services', SERVICES);
+  });
 
-// Upgrade HTTP server for WebSocket proxying
-server.on('upgrade', (request, socket, head) => {
-  // Route WebSocket upgrades to chat service
-  const chatProxy = proxy(SERVICES.chat);
-  chatProxy.upgrade(request, socket, head);
-});
+  server.on('upgrade', (request, socket, head) => {
+    const chatProxy = proxy(SERVICES.chat);
+    chatProxy.upgrade(request, socket, head);
+  });
 
-async function shutdown(signal) {
-  logger.info('Shutdown signal received', { signal, service: 'api-gateway' });
-  await new Promise((resolve) => server.close(resolve));
-  process.exit(0);
+  async function shutdown(signal) {
+    logger.info('Shutdown signal received', { signal, service: 'api-gateway' });
+    await new Promise((resolve) => server.close(resolve));
+    process.exit(0);
+  }
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+module.exports = app;

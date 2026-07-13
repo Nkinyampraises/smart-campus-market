@@ -6,7 +6,7 @@ jest.mock('pg', () => {
   const mockPool = { query: jest.fn() };
   return { Pool: jest.fn(() => mockPool) };
 });
-jest.mock('../../../shared/events', () => ({
+jest.mock('../../shared/events', () => ({
   initRedis: jest.fn().mockResolvedValue(true),
   publishEvent: jest.fn().mockResolvedValue(true),
   subscribeToEvents: jest.fn().mockResolvedValue(true),
@@ -20,7 +20,7 @@ jest.mock('prom-client', () => ({
 
 const { Pool } = require('pg');
 const mockPool = new Pool();
-const { publishEvent } = require('../../../shared/events');
+const { publishEvent } = require('../../shared/events');
 
 process.env.JWT_SECRET = 'test_secret';
 

@@ -35,7 +35,7 @@ app.get('/api/conversations', authenticate, asyncHandler(async (req, res) => {
       (SELECT created_at FROM messages WHERE conversation_id=c.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
       (SELECT COUNT(*)::int FROM messages WHERE conversation_id=c.id AND is_read=false AND sender_id<>$1) as unread_count,
       CASE WHEN c.buyer_id=$1 THEN c.seller_id ELSE c.buyer_id END as partner_id,
-      u.first_name as partner_first, u.last_name as partner_last, u.avatar_url as partner_avatar
+      u.first_name as partner_first, u.last_name as partner_last, u.avatar_url as partner_avatar, u.email as partner_email
      FROM conversations c
      LEFT JOIN users u ON u.id = CASE WHEN c.buyer_id=$1 THEN c.seller_id ELSE c.buyer_id END
      WHERE c.buyer_id=$1 OR c.seller_id=$1
@@ -61,6 +61,35 @@ app.get('/api/conversations/:id/messages', authenticate, asyncHandler(async (req
      WHERE m.conversation_id=$1 ORDER BY m.created_at ASC`, [convId]
   );
   res.json(result.rows);
+}));
+
+// POST /api/conversations/:id/messages — send a message
+app.post('/api/conversations/:id/messages', authenticate, asyncHandler(async (req, res) => {
+  const convId = req.params.id;
+  const { text, type = 'text', offer_amount } = req.body;
+  if (!text) throw new AppError('Message text required', 400);
+
+  const conv = await pool.query('SELECT buyer_id, seller_id FROM conversations WHERE id=$1', [convId]);
+  if (!conv.rows.length) throw new AppError('Conversation not found', 404);
+  const { buyer_id, seller_id } = conv.rows[0];
+  if (buyer_id !== req.user.userId && seller_id !== req.user.userId) throw new AppError('Forbidden', 403);
+
+  const result = await pool.query(
+    'INSERT INTO messages (conversation_id, sender_id, text, type, offer_amount, created_at) VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *',
+    [convId, req.user.userId, text, type, offer_amount || null]
+  );
+
+  // Notify the other party
+  const recipientId = buyer_id === req.user.userId ? seller_id : buyer_id;
+  await publishEvent(EVENT_CHANNELS.NOTIFICATION, {
+    type: 'new_message',
+    conversationId: convId,
+    senderId: req.user.userId,
+    recipientId,
+    text: type === 'text' ? text.slice(0, 80) : `Sent a ${type}`,
+  });
+
+  res.status(201).json(result.rows[0]);
 }));
 
 // POST /api/conversations
@@ -207,7 +236,8 @@ app.patch('/api/conversations/:id/read', authenticate, asyncHandler(async (req, 
 }));
 
 // Socket.io — real-time messaging with Redis adapter
-io = new Server(server, { cors: { origin: process.env.FRONTEND_URL || 'http://localhost:5173' } });
+const _chatAllowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(o => o.trim());
+io = new Server(server, { cors: { origin: _chatAllowedOrigins, credentials: true } });
 
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
@@ -317,4 +347,7 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-init();
+module.exports = app;
+module.exports._init = init;
+module.exports._shutdown = shutdown;
+if (require.main === module) { init(); }

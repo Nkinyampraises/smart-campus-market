@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const nodemailer = require('nodemailer');
+const webpush = require('web-push');
 const cors = require('cors');
 const helmet = require('helmet');
 const { collectDefaultMetrics, register } = require('prom-client');
@@ -11,17 +12,27 @@ const logger = require('../../shared/logger');
 const { metricsMiddleware } = require('../../shared/metrics');
 const { initRedis, closeRedis, subscribeToEvents, EVENT_CHANNELS, EVENT_TYPES } = require('../../shared/events');
 
+// Configure VAPID for Web Push
+webpush.setVapidDetails(
+  process.env.VAPID_EMAIL || 'mailto:admin@campustrade.cm',
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
+
 const app = express();
 const PORT = process.env.PORT || 3008;
 let server;
 
 const mailer = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT || 587,
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '587'),
   auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
   secure: false,
   tls: { rejectUnauthorized: false },
 });
+
+// Use only the first URL when FRONTEND_URL is comma-separated (second is for OAuth origin)
+const SITE_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim();
 
 app.use(helmet());
 app.use(cors());
@@ -74,15 +85,75 @@ async function saveNotification(userId, type, title, description, link = null) {
     'INSERT INTO notifications (user_id, type, title, description, link, is_read, created_at) VALUES ($1,$2,$3,$4,$5,false,NOW())',
     [userId, type, title, description, link]
   ).catch((e) => logger.error('Notification save failed', { error: e.message }));
+
+  // Also send browser push notification immediately
+  await sendPushToUser(userId, {
+    title,
+    body: description,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    url: link || '/',
+    tag: type,
+  });
 }
 
 async function sendEmail(to, subject, html) {
-  if (!process.env.SMTP_HOST) return;
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    logger.warn('Email skipped — SMTP_USER/SMTP_PASS not configured', { to, subject });
+    return;
+  }
   try {
-    await mailer.sendMail({ from: process.env.FROM_EMAIL || 'noreply@campustrade.edu.cm', to, subject, html });
+    await mailer.sendMail({ from: `CampusTrade <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`, to, subject, html });
     logger.info('Email sent', { to, subject });
   } catch (err) {
-    logger.error('Email send error', { to, error: err.message });
+    logger.error('Email send error', { to, subject, error: err.message });
+  }
+}
+
+// ── Push Subscription endpoints ───────────────────────────────────────────
+
+// POST /api/notifications/push/subscribe — save browser push subscription
+app.post('/api/notifications/push/subscribe', authenticate, asyncHandler(async (req, res) => {
+  const { endpoint, keys } = req.body;
+  if (!endpoint || !keys?.p256dh || !keys?.auth) throw new AppError('Invalid subscription', 400);
+  await pool.query(
+    `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (user_id, endpoint) DO UPDATE SET p256dh=$3, auth=$4`,
+    [req.user.userId, endpoint, keys.p256dh, keys.auth]
+  );
+  res.json({ message: 'Subscribed to push notifications' });
+}));
+
+// DELETE /api/notifications/push/unsubscribe
+app.delete('/api/notifications/push/unsubscribe', authenticate, asyncHandler(async (req, res) => {
+  const { endpoint } = req.body;
+  await pool.query('DELETE FROM push_subscriptions WHERE user_id=$1 AND endpoint=$2', [req.user.userId, endpoint]);
+  res.json({ message: 'Unsubscribed' });
+}));
+
+// GET /api/notifications/push/vapid-public-key — frontend needs this to subscribe
+app.get('/api/notifications/push/vapid-public-key', (_req, res) => {
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+});
+
+// ── Push helper ───────────────────────────────────────────────────────────
+
+async function sendPushToUser(userId, payload) {
+  try {
+    const subs = await pool.query('SELECT * FROM push_subscriptions WHERE user_id=$1', [userId]);
+    const message = JSON.stringify(payload);
+    for (const sub of subs.rows) {
+      const pushSub = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } };
+      webpush.sendNotification(pushSub, message).catch((err) => {
+        // Remove invalid/expired subscriptions
+        if (err.statusCode === 404 || err.statusCode === 410) {
+          pool.query('DELETE FROM push_subscriptions WHERE endpoint=$1', [sub.endpoint]).catch(() => {});
+        }
+      });
+    }
+  } catch (err) {
+    logger.error('Push send error', { error: err.message });
   }
 }
 
@@ -108,9 +179,17 @@ async function setupEventHandlers() {
       case EVENT_TYPES.WELCOME_EMAIL: {
         const user = await pool.query('SELECT email, first_name FROM users WHERE id=$1', [event.userId]);
         if (!user.rows.length) break;
-        await sendEmail(user.rows[0].email, 'Welcome to CampusTrade!',
-          `<h2>Hi ${user.rows[0].first_name || 'there'}, welcome!</h2>
-           <p>Verify your email: <a href="${process.env.FRONTEND_URL}/verify-email?token=${event.payload?.verificationToken}">Click here</a></p>`
+        await sendEmail(user.rows[0].email, 'Welcome to CampusTrade! Please verify your email',
+          `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+            <h2 style="color:#ff6b1a">Welcome to CampusTrade, ${user.rows[0].first_name || 'there'}!</h2>
+            <p>Thank you for joining the ICT University campus marketplace.</p>
+            <p>Please verify your email address to start buying and selling:</p>
+            <a href="${SITE_URL}/verify-email?token=${event.payload?.verificationToken}"
+               style="display:inline-block;background:#ff6b1a;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0">
+              Verify My Email
+            </a>
+            <p style="color:#666;font-size:13px">This link expires in 24 hours. If you did not create this account, ignore this email.</p>
+          </div>`
         );
         break;
       }
@@ -119,7 +198,13 @@ async function setupEventHandlers() {
         const user = await pool.query('SELECT email FROM users WHERE id=$1', [event.userId]);
         if (user.rows.length) {
           await sendEmail(user.rows[0].email, 'Verify your CampusTrade email',
-            `<p><a href="${process.env.FRONTEND_URL}/verify-email?token=${event.payload?.token}">Click to verify</a></p>`
+            `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+              <h2 style="color:#ff6b1a">Verify your email</h2>
+              <a href="${SITE_URL}/verify-email?token=${event.payload?.token}"
+                 style="display:inline-block;background:#ff6b1a;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">
+                Click here to verify
+              </a>
+            </div>`
           );
         }
         break;
@@ -128,9 +213,17 @@ async function setupEventHandlers() {
       case 'password_reset': {
         const user = await pool.query('SELECT email, first_name FROM users WHERE id=$1', [event.userId]);
         if (user.rows.length) {
-          await sendEmail(user.rows[0].email, 'Password reset request',
-            `<p>Hi ${user.rows[0].first_name || 'there'},</p>
-             <p>Click <a href="${process.env.FRONTEND_URL}/reset-password?token=${event.payload?.token}">here</a> to reset your password.</p>`
+          await sendEmail(user.rows[0].email, 'Reset your CampusTrade password',
+            `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+              <h2 style="color:#ff6b1a">Password Reset Request</h2>
+              <p>Hi ${user.rows[0].first_name || 'there'},</p>
+              <p>Click the button below to reset your password. This link expires in 1 hour.</p>
+              <a href="${SITE_URL}/reset-password?token=${event.payload?.token}"
+                 style="display:inline-block;background:#ff6b1a;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">
+                Reset Password
+              </a>
+              <p style="color:#666;font-size:13px">If you did not request this, ignore this email.</p>
+            </div>`
           );
         }
         break;
@@ -239,4 +332,7 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-init();
+module.exports = app;
+module.exports._init = init;
+module.exports._shutdown = shutdown;
+if (require.main === module) { init(); }

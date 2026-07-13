@@ -148,6 +148,15 @@ app.patch('/api/admin/fraud-flags/:id/resolve', authenticateAdmin, asyncHandler(
   res.json({ message: 'Fraud flag resolved' });
 }));
 
+// GET /api/admin/listing-flags/:listingId — public, used by listing detail page
+app.get('/api/admin/listing-flags/:listingId', asyncHandler(async (req, res) => {
+  const result = await pool.query(
+    'SELECT id, type, rule, created_at FROM fraud_flags WHERE listing_id=$1 AND resolved=false ORDER BY created_at DESC',
+    [req.params.listingId]
+  );
+  res.json({ flagged: result.rows.length > 0, flags: result.rows });
+}));
+
 // POST /api/reports — any authenticated user can file a report
 app.post('/api/reports', authenticate, asyncHandler(async (req, res) => {
   const { listing_id, reason, description } = req.body;
@@ -168,8 +177,8 @@ app.post('/api/reports', authenticate, asyncHandler(async (req, res) => {
     [listing_id, 'pending']
   );
   if (count.rows[0].cnt >= 3) {
-    await publishEvent(EVENT_CHANNELS.ADMIN, { type: 'listing.removed', listingId });
-    logger.info('Auto-hidden listing due to reports', { listingId });
+    await publishEvent(EVENT_CHANNELS.ADMIN, { type: 'listing.removed', listingId: listing_id });
+    logger.info('Auto-hidden listing due to reports', { listingId: listing_id });
   }
 
   res.status(201).json({ message: 'Report submitted' });
@@ -193,7 +202,7 @@ app.use((err, req, res, _next) => {
 
 async function setupEventHandlers() {
   await subscribeToEvents(EVENT_CHANNELS.AUDIT, async (event) => {
-    if (event.type === EVENT_TYPES.LOW_PRICE_FLAG || event.type === EVENT_TYPES.SPAM_RATE_FLAG) {
+    if ([EVENT_TYPES.LOW_PRICE_FLAG, EVENT_TYPES.HIGH_PRICE_FLAG, EVENT_TYPES.SPAM_RATE_FLAG].includes(event.type)) {
       await pool.query(
         'INSERT INTO fraud_flags (listing_id, seller_id, rule, type, resolved, created_at) VALUES ($1,$2,$3,$4,false,NOW())',
         [event.listingId, event.sellerId, event.rule, event.type]
@@ -226,4 +235,7 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-init();
+module.exports = app;
+module.exports._init = init;
+module.exports._shutdown = shutdown;
+if (require.main === module) { init(); }

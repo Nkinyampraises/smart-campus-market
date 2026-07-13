@@ -21,8 +21,31 @@ app.use(cors());
 app.use(express.json());
 app.use(metricsMiddleware);
 
+// GET /api/users/me — MUST be defined BEFORE /:id so "me" is not treated as a UUID
+app.get('/api/users/me', authenticate, asyncHandler(async (req, res) => {
+  const result = await pool.query('SELECT * FROM users WHERE id=$1', [req.user.userId]);
+  if (!result.rows.length) throw new AppError('User not found', 404);
+  const { password_hash, verification_token, ...user } = result.rows[0];
+
+  const activeListings = await pool.query("SELECT COUNT(*)::int as cnt FROM listings WHERE seller_id=$1 AND status='active'", [req.user.userId]);
+  const soldItems  = await pool.query("SELECT COUNT(*)::int as cnt FROM transactions WHERE seller_id=$1", [req.user.userId]);
+  const boughtItems= await pool.query("SELECT COUNT(*)::int as cnt FROM transactions WHERE buyer_id=$1", [req.user.userId]);
+
+  res.json({ ...user, active_listings: activeListings.rows[0].cnt, sold_items: soldItems.rows[0].cnt, bought_items: boughtItems.rows[0].cnt });
+}));
+
+// PATCH /api/users/me — update profile (also before /:id)
+app.patch('/api/users/me', authenticate, asyncHandler(async (req, res) => {
+  const { first_name, last_name, bio, campus_zone, phone, avatar_url } = req.body;
+  await pool.query(
+    'UPDATE users SET first_name=$1, last_name=$2, bio=$3, campus_zone=$4, phone=$5, avatar_url=$6, updated_at=NOW() WHERE id=$7',
+    [sanitizeString(first_name, 100), sanitizeString(last_name, 100), sanitizeString(bio, 2000), sanitizeString(campus_zone, 100), sanitizeString(phone, 30), sanitizeString(avatar_url, 500), req.user.userId]
+  );
+  res.json({ message: 'Profile updated' });
+}));
+
 // GET /api/users/:id — public profile
-app.get('/api/users/:id([0-9a-fA-F-]{36})', asyncHandler(async (req, res) => {
+app.get('/api/users/:id', asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!validateUUID(id)) throw new AppError('Invalid user ID', 400);
 
@@ -50,35 +73,9 @@ app.get('/api/users/:id([0-9a-fA-F-]{36})', asyncHandler(async (req, res) => {
   });
 }));
 
-// GET /api/users/me — own profile with computed stats
-app.get('/api/users/me', authenticate, asyncHandler(async (req, res) => {
-  const result = await pool.query('SELECT * FROM users WHERE id=$1', [req.user.userId]);
-  if (!result.rows.length) throw new AppError('User not found', 404);
-  const { password_hash, verification_token, ...user } = result.rows[0];
-
-  const activeListings = await pool.query("SELECT COUNT(*)::int as cnt FROM listings WHERE seller_id=$1 AND status='active'", [req.user.userId]);
-  const soldItems = await pool.query("SELECT COUNT(*)::int as cnt FROM transactions WHERE seller_id=$1", [req.user.userId]);
-  const boughtItems = await pool.query("SELECT COUNT(*)::int as cnt FROM transactions WHERE buyer_id=$1", [req.user.userId]);
-
-  res.json({ ...user, active_listings: activeListings.rows[0].cnt, sold_items: soldItems.rows[0].cnt, bought_items: boughtItems.rows[0].cnt });
-}));
-
-// PATCH /api/users/me — update profile
-app.patch('/api/users/me', authenticate, asyncHandler(async (req, res) => {
-  const { first_name, last_name, bio, campus_zone, phone, avatar_url } = req.body;
-  await pool.query(
-    'UPDATE users SET first_name=$1, last_name=$2, bio=$3, campus_zone=$4, phone=$5, avatar_url=$6, updated_at=NOW() WHERE id=$7',
-    [sanitizeString(first_name, 100), sanitizeString(last_name, 100), sanitizeString(bio, 2000), sanitizeString(campus_zone, 100), sanitizeString(phone, 30), sanitizeString(avatar_url, 500), req.user.userId]
-  );
-  await publishEvent(EVENT_CHANNELS.USER, {
-    type: EVENT_TYPES.USER_PROFILE_UPDATED,
-    userId: req.user.userId,
-  });
-  res.json({ message: 'Profile updated' });
-}));
 
 // POST /api/users/:id/reviews — leave a review
-app.post('/api/users/:id([0-9a-fA-F-]{36})/reviews', authenticate, asyncHandler(async (req, res) => {
+app.post('/api/users/:id/reviews', authenticate, asyncHandler(async (req, res) => {
   const { rating, comment } = req.body;
   const sellerId = req.params.id;
   if (!validateUUID(sellerId)) throw new AppError('Invalid seller ID', 400);
@@ -206,8 +203,7 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-if (process.env.NODE_ENV !== 'test') {
-  init();
-}
-
 module.exports = app;
+module.exports._init = init;
+module.exports._shutdown = shutdown;
+if (require.main === module) { init(); }

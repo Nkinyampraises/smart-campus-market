@@ -11,8 +11,26 @@ const defaultStats = [
   { label: 'Messages', value: '-' },
 ];
 
+const CATEGORY_IMAGES = {
+  Electronics:   'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&h=400&fit=crop',
+  Clothing:      'https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=600&h=400&fit=crop',
+  Services:      'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=400&fit=crop',
+  Accessories:   'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&h=400&fit=crop',
+  Cosmetics:     'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600&h=400&fit=crop',
+  Perfumes:      'https://images.unsplash.com/photo-1541643600914-78b084683702?w=600&h=400&fit=crop',
+  Bracelets:     'https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=600&h=400&fit=crop',
+  'Fruit Salad': 'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=600&h=400&fit=crop',
+  Juice:         'https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=600&h=400&fit=crop',
+  'Pancake/Cake':'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=600&h=400&fit=crop',
+  Shawarma:      'https://images.unsplash.com/photo-1551248429-40975aa4de74?w=600&h=400&fit=crop',
+  Shoes:         'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&h=400&fit=crop',
+  'Liquid Soap': 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=600&h=400&fit=crop',
+};
+
 const HomeCard = ({ listing, onClick, showTime = false }) => {
-  const image = listing.images?.[0] || listing.image || '';
+  const image = listing.images?.[0] || listing.image ||
+    CATEGORY_IMAGES[listing.category] ||
+    'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=600&h=400&fit=crop';
   const price = listing.priceFCFA || listing.price || 0;
 
   return (
@@ -61,12 +79,14 @@ const Home = () => {
   const tabs = ['All', 'Textbooks', 'Tech'];
 
   useEffect(() => {
-    api.getListings({ limit: 4 }).then(setTrending).catch(() => {});
-    api.getListings({ limit: 4, page: 2 }).then(setRecent).catch(() => {});
-    api.trending().then((data) => {
-      if (Array.isArray(data)) setTrending(data.slice(0, 4));
-      if (data?.trending_listings) setTrending(data.trending_listings.slice(0, 4));
-    }).catch(() => {});
+    api.getListings({ limit: 8 })
+      .then((data) => {
+        const listings = Array.isArray(data) ? data : [];
+        setTrending(listings.slice(0, 4));
+        // recent shows all listings so even 1-4 items still appear
+        setRecent(listings);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -272,6 +292,14 @@ const Home = () => {
                     </span>
                   </li>
                 ))}
+                <li>
+                  <Link
+                    to="/about"
+                    className="text-[14px] text-gray-500 hover:text-[#ff6b1a] no-underline transition-colors"
+                  >
+                    About the Team
+                  </Link>
+                </li>
               </ul>
             </div>
 

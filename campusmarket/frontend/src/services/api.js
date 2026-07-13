@@ -28,9 +28,10 @@ const del  = (path)        => request('DELETE', path);
 
 export const api = {
   // ── Auth ──────────────────────────────────────────────────────────────────
-  login:       (email, password) => post('/api/auth/login', { email, password }),
-  register:    (data)            => post('/api/auth/register', data),
-  verifyEmail: (token)           => get(`/api/auth/verify/${token}`),
+  login:        (email, password) => post('/api/auth/login', { email, password }),
+  register:     (data)            => post('/api/auth/register', data),
+  verifyEmail:  (token)           => get(`/api/auth/verify/${token}`),
+  googleLogin:  (credential)      => post('/api/auth/google', { credential }),
   logout:      ()               => post('/api/auth/logout'),
   refresh:     ()               => post('/api/auth/refresh'),
   forgotPassword: (email)       => post('/api/auth/forgot-password', { email }),
@@ -78,16 +79,19 @@ export const api = {
   updateOffer:   (id, data)    => patch(`/api/offers/${id}`, data),
 
   // ── Chat ──────────────────────────────────────────────────────────────────
-  getConversations:  ()        => get('/api/conversations'),
-  getMessages:       (id)      => get(`/api/conversations/${id}/messages`),
-  startConversation: (data)    => post('/api/conversations', data),
+  getConversations:  ()          => get('/api/conversations'),
+  getMessages:       (id)        => get(`/api/conversations/${id}/messages`),
+  startConversation: (data)      => post('/api/conversations', data),
+  sendMessage:       (id, data)  => post(`/api/conversations/${id}/messages`, data),
   markRead:          (id)      => patch(`/api/conversations/${id}/read`),
 
   // ── Notifications ─────────────────────────────────────────────────────────
   getNotifications: ()  => get('/api/notifications'),
   getUnreadCount:   ()  => get('/api/notifications/unread-count'),
   markReadNotif:    (id) => patch(`/api/notifications/${id}/read`),
-  markAllRead:      ()  => patch('/api/notifications/read-all'),
+  markAllRead:      ()     => patch('/api/notifications/read-all'),
+  subscribePush:    (data) => post('/api/notifications/push/subscribe', data),
+  unsubscribePush:  (data) => post('/api/notifications/push/unsubscribe', data),
 
   // ── Reports ───────────────────────────────────────────────────────────────
   fileReport: (data) => post('/api/reports', data),
@@ -106,8 +110,9 @@ export const api = {
 
   // ── AI ────────────────────────────────────────────────────────────────────
   priceSuggestion: (data) => post('/api/ai/price-suggestion', data),
-  fraudCheck:      (data) => post('/api/ai/fraud-check', data),
-  aiTrending:      ()     => get('/api/ai/trending'),
+  fraudCheck:        (data) => post('/api/ai/fraud-check', data),
+  listingFraudFlags: (id)  => get(`/api/admin/listing-flags/${id}`),
+  aiTrending:        ()    => get('/api/ai/trending'),
 };
 
 export const saveToken  = (token) => localStorage.setItem('campustrade_token', token);

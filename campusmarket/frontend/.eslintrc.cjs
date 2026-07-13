@@ -38,5 +38,12 @@ module.exports = {
         node: true,
       },
     },
+    {
+      files: ['public/sw.js'],
+      env: {
+        browser: false,
+        serviceworker: true,
+      },
+    },
   ],
 };

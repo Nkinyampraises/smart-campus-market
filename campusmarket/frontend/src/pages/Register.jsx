@@ -5,12 +5,17 @@ import { useToast } from '../context/ToastContext';
 import AuthNavbar from '../components/AuthNavbar';
 
 const zones = [
-  'Engineering Block',
-  'Science Block',
-  'Arts Block',
-  'Main Dorms',
-  'Student Union',
-  'Medical Block',
+  'Canteen',
+  'Chumbuw Hall',
+  'Eric Mbarika',
+  'George Mbarika',
+  'Pondi Hall',
+  'Linda Terry Hall',
+  'IT Hall',
+  'Chapel',
+  'French Hall',
+  'Cisco Lab',
+  'Computer Lab',
 ];
 
 const getPasswordStrength = (pwd) => {
@@ -68,11 +73,10 @@ const Register = () => {
     const result = await register(form);
     setLoading(false);
     if (result.success) {
-      localStorage.setItem('pending_verification_email', form.email);
-      showToast('Account created! Please verify your email.', 'success');
-      navigate('/verify-email');
+      showToast('Account created! You can now log in.', 'success');
+      navigate('/login');
     } else {
-      showToast('Registration failed. Try again.', 'error');
+      showToast(result.error || 'Registration failed. Try again.', 'error');
     }
   };
 
@@ -131,7 +135,7 @@ const Register = () => {
                 type="email"
                 value={form.email}
                 onChange={(e) => set('email', e.target.value)}
-                placeholder="you@ictuniversity.edu.cm"
+                placeholder="you@email.com"
                 className={`w-full px-4 py-3 rounded-xl border text-[14px] focus:outline-none focus:ring-2 focus:ring-[#ff6b1a] transition-all ${errors.email ? 'border-red-400' : 'border-[#e2bfb2]'}`}
               />
               {errors.email && <p className="text-red-500 text-[11px] mt-1">{errors.email}</p>}

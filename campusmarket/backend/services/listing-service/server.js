@@ -7,7 +7,7 @@ const multer = require('multer');
 const { collectDefaultMetrics, register } = require('prom-client');
 const pool = require('../../shared/db');
 const { authenticate } = require('../../shared/authMiddleware');
-const { sanitizeString, validateListing, validateUUID } = require('../../shared/validate');
+const { validateListing, validateUUID, sanitizeString } = require('../../shared/validate');
 const { asyncHandler, AppError } = require('../../shared/errorHandler');
 const logger = require('../../shared/logger');
 const { metricsMiddleware } = require('../../shared/metrics');
@@ -18,7 +18,6 @@ const PORT = process.env.PORT || 3003;
 
 let redis;
 let server;
-let expiryInterval;
 
 collectDefaultMetrics();
 app.use(helmet());
@@ -30,11 +29,6 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 
 // Helper: record unique view with Redis dedup (1 hour window)
 async function recordView(listingId, userIdOrIp) {
-  if (!redis || typeof redis.get !== 'function' || typeof redis.set !== 'function') {
-    await pool.query('UPDATE listings SET views=views+1 WHERE id=$1', [listingId]);
-    return;
-  }
-
   const key = `view:${listingId}:${userIdOrIp}`;
   const exists = await redis.get(key);
   if (!exists) {
@@ -46,7 +40,7 @@ async function recordView(listingId, userIdOrIp) {
 // GET /api/listings — browse active listings
 app.get('/api/listings', asyncHandler(async (req, res) => {
   const { category, campus_zone, min_price, max_price, condition, mine, page = 1, limit = 20 } = req.query;
-  let query = "SELECT l.*, json_agg(li.image_url ORDER BY li.sort_order) FILTER (WHERE li.id IS NOT NULL) as image_urls FROM listings l LEFT JOIN listing_images li ON l.id=li.listing_id WHERE l.status=$1";
+  let query = "SELECT l.*, COALESCE(array_agg(li.image_url ORDER BY li.sort_order) FILTER (WHERE li.id IS NOT NULL), ARRAY[]::TEXT[]) as images FROM listings l LEFT JOIN listing_images li ON l.id=li.listing_id WHERE l.status=$1";
   const params = ['active'];
   let idx = 2;
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -85,7 +79,7 @@ app.get('/api/listings/:id', asyncHandler(async (req, res) => {
 
   const result = await pool.query(
     `SELECT l.*,
-      (SELECT json_agg(json_build_object('url', image_url, 'order', sort_order) ORDER BY sort_order) FROM listing_images WHERE listing_id=l.id) as images,
+      COALESCE((SELECT array_agg(image_url ORDER BY sort_order) FROM listing_images WHERE listing_id=l.id), ARRAY[]::TEXT[]) as images,
       u.first_name as seller_first, u.last_name as seller_last, u.rating as seller_rating, u.avatar_url as seller_avatar
      FROM listings l JOIN users u ON l.seller_id=u.id WHERE l.id=$1`, [id]
   );
@@ -253,25 +247,23 @@ async function setupEventHandlers() {
   });
 }
 
-function startExpiryJob() {
-  expiryInterval = setInterval(async () => {
-    try {
-      const result = await pool.query("UPDATE listings SET status='expired' WHERE status='active' AND expires_at < NOW() RETURNING id");
-      for (const row of result.rows) {
-        await publishEvent(EVENT_CHANNELS.LISTING, { type: EVENT_TYPES.LISTING_EXPIRED, listingId: row.id });
-      }
-    } catch (err) {
-      logger.error('Auto-expiry failed', { error: err.message });
+// Auto-expiry: run every hour
+const expiryInterval = setInterval(async () => {
+  try {
+    const result = await pool.query("UPDATE listings SET status='expired' WHERE status='active' AND expires_at < NOW() RETURNING id");
+    for (const row of result.rows) {
+      await publishEvent(EVENT_CHANNELS.LISTING, { type: EVENT_TYPES.LISTING_EXPIRED, listingId: row.id });
     }
-  }, 3600000);
-}
+  } catch (err) {
+    logger.error('Auto-expiry failed', { error: err.message });
+  }
+}, 3600000);
 
 async function init() {
   try {
     await initRedis();
     redis = getRedisClient();
     await setupEventHandlers();
-    startExpiryJob();
     server = app.listen(PORT, () => logger.info(`Listing service running on port ${PORT}`));
   } catch (err) {
     logger.error('Failed to start listing-service', { error: err.message });
@@ -281,9 +273,7 @@ async function init() {
 
 async function shutdown(signal) {
   logger.info('Shutdown signal received', { signal, service: 'listing-service' });
-  if (expiryInterval) {
-    clearInterval(expiryInterval);
-  }
+  clearInterval(expiryInterval);
   if (server) {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -295,8 +285,7 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-if (process.env.NODE_ENV !== 'test') {
-  init();
-}
-
 module.exports = app;
+module.exports._init = init;
+module.exports._shutdown = shutdown;
+if (require.main === module) { init(); }

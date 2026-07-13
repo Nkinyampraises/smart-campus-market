@@ -1,1 +1,46 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build and test outputs
+dist/
+build/
+.next/
+out/
+coverage/
+*.lcov
+lcov.info
+.scannerwork/
+
+# Secrets and local environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
+.claude/
 .zhanlu/
+
+# Archives, caches, and temporary files
+*.tgz
+*.zip
+.cache/
+tmp/
+temp/

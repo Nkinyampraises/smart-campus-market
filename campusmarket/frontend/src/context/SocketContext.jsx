@@ -12,11 +12,13 @@ export function SocketProvider({ children }) {
     const token = getToken();
     if (!token) return;
 
-    const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:8080', {
+    // Connect directly to chat-service — the gateway doesn't proxy Socket.io
+    const socket = io(import.meta.env.VITE_CHAT_URL || 'http://localhost:3004', {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       reconnection: true,
-      reconnectionDelay: 2000,
+      reconnectionDelay: 3000,
+      reconnectionAttempts: 5,
     });
 
     socketRef.current = socket;

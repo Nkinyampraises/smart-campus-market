@@ -2,77 +2,73 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { api } from '../services/api';
 
-const baseNavItems = [
-  { icon: 'dashboard', label: 'Dashboard', path: '/admin/dashboard' },
-  { icon: 'group', label: 'Users', path: '/admin/users' },
-  { icon: 'store', label: 'Listings', path: '/admin/listings' },
-  { icon: 'flag', label: 'Reports', path: '/admin/reports' },
-  { icon: 'gpp_bad', label: 'Fraud Alerts', path: '/admin/fraud' },
+const NAV_ITEMS = [
+  { icon: 'dashboard',  label: 'Dashboard',    path: '/admin/dashboard' },
+  { icon: 'group',      label: 'Users',         path: '/admin/users' },
+  { icon: 'store',      label: 'Listings',      path: '/admin/listings' },
+  { icon: 'flag',       label: 'Reports',       path: '/admin/reports', badgeKey: 'pendingReports' },
+  { icon: 'gpp_bad',   label: 'Fraud Alerts',  path: '/admin/fraud',   badgeKey: 'fraudFlags' },
 ];
 
 const AdminSidebar = () => {
   const location = useLocation();
-  const [stats, setStats] = useState({ pendingReports: 0, fraudFlags: 0 });
+  const [stats, setStats] = useState({});
 
   useEffect(() => {
-    api.adminStats().then((s) => {
-      if (s) setStats({ pendingReports: s.pendingReports || 0, fraudFlags: s.fraudFlags || 0 });
-    }).catch(() => {});
+    api.adminStats().then(setStats).catch(() => {});
   }, []);
 
-  const navItems = baseNavItems.map((item) => {
-    if (item.label === 'Reports') return { ...item, badge: stats.pendingReports };
-    if (item.label === 'Fraud Alerts') return { ...item, badge: stats.fraudFlags };
-    return item;
-  });
-
   return (
-    <aside className="hidden md:flex flex-col w-64 border-r border-gray-100 bg-white p-4 gap-2 sticky top-[61px] h-[calc(100vh-61px)] overflow-y-auto flex-shrink-0">
-      {/* Admin Badge */}
-      <div className="mb-5 px-2">
-        <span className="inline-block bg-red-600 text-white text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full mb-3">
-          Admin Panel
-        </span>
-        <p className="text-[12px] text-gray-400">Platform Management</p>
+    <aside className="hidden md:flex flex-col w-60 border-r border-gray-100 bg-white flex-shrink-0 sticky top-14 h-[calc(100vh-56px)] overflow-y-auto">
+      <div className="p-4">
+        {/* Admin badge */}
+        <div className="mb-6 px-2 pt-2">
+          <span className="inline-block bg-red-600 text-white text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full">
+            Admin Panel
+          </span>
+          <p className="text-[11px] text-gray-400 mt-1.5">Platform Management</p>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex flex-col gap-1">
+          {NAV_ITEMS.map((item) => {
+            const active = location.pathname === item.path;
+            const badge  = item.badgeKey ? stats[item.badgeKey] : 0;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-[13px] no-underline ${
+                  active
+                    ? 'bg-orange-50 text-[#ff6b1a] font-bold'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-[#1b1c1c]'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[20px]" style={{ color: active ? '#ff6b1a' : undefined }}>
+                  {item.icon}
+                </span>
+                <span className="flex-1">{item.label}</span>
+                {badge > 0 && (
+                  <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                    {badge}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
 
-      <nav className="flex flex-col gap-1 flex-1">
-        {navItems.map((item) => {
-          const active = location.pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-[13px] no-underline ${
-                active
-                  ? 'bg-orange-50 text-[#ff6b1a] font-bold'
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-[#1b1c1c]'
-              }`}
-            >
-              <span
-                className="material-symbols-outlined text-[20px]"
-                style={{ color: active ? '#ff6b1a' : undefined }}
-              >
-                {item.icon}
-              </span>
-              <span className="flex-1">{item.label}</span>
-              {item.badge > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                  {item.badge}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="border-t border-gray-100 pt-4">
+      {/* Bottom */}
+      <div className="mt-auto border-t border-gray-100 p-4">
         <Link
           to="/browse"
-          className="flex items-center gap-3 px-4 py-3 text-gray-500 hover:bg-gray-50 rounded-lg transition-all text-[13px] no-underline"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 px-4 py-2.5 text-gray-400 hover:bg-gray-50 rounded-xl transition-all text-[13px] no-underline"
         >
-          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-          <span>Back to Marketplace</span>
+          <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+          <span>Open Marketplace</span>
         </Link>
       </div>
     </aside>

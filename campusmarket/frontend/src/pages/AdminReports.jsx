@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import AdminSidebar from '../components/AdminSidebar';
+import AdminLayout from '../components/AdminLayout';
 import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
@@ -24,9 +24,8 @@ const AdminReports = () => {
     s === 'high' ? 'bg-red-100 text-red-600' : s === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500';
 
   return (
-    <div className="min-h-screen bg-[#fcf9f8] flex">
-      <AdminSidebar activePage="reports" />
-      <main className="flex-1 p-8">
+    <AdminLayout>
+      <div className="max-w-[1400px] mx-auto px-6 py-8">
         <h1 className="text-[28px] font-black text-[#1b1c1c] mb-8">Reports</h1>
         {loading ? (
           <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-[#ff6b1a] border-t-transparent rounded-full animate-spin" /></div>
@@ -58,8 +57,8 @@ const AdminReports = () => {
             ))}
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 };
 

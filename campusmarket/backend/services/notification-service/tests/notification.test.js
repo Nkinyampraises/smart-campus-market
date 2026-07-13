@@ -7,7 +7,7 @@ jest.mock('nodemailer', () => ({
     sendMail: jest.fn().mockResolvedValue({ messageId: 'test-id' }),
   })),
 }));
-jest.mock('../../../shared/events', () => ({
+jest.mock('../../shared/events', () => ({
   initRedis: jest.fn().mockResolvedValue(true),
   publishEvent: jest.fn().mockResolvedValue(true),
   subscribeToEvents: jest.fn().mockResolvedValue(true),
@@ -95,7 +95,7 @@ describe('Notification Service — Email sending', () => {
 });
 
 describe('Notification Service — Event bus subscriptions', () => {
-  const { subscribeToEvents, EVENT_CHANNELS } = require('../../../shared/events');
+  const { subscribeToEvents, EVENT_CHANNELS } = require('../../shared/events');
 
   it('subscribes to the NOTIFICATION channel on init', () => {
     expect(subscribeToEvents).toBeDefined();

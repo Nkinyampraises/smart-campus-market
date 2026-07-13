@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BRANCH="${1:-feat/production-hardening-release-gate}"
+BRANCH="${1:-main}"
 TARGET="${2:-/home/azureuser/campusmarket}"
 REPOSITORY="https://github.com/Nkinyampraises/smart-campus-market.git"
 

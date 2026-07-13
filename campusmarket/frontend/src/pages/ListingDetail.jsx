@@ -7,11 +7,14 @@ import OfferModal from '../components/modals/OfferModal';
 import ReportModal from '../components/modals/ReportModal';
 import BuyNowModal from '../components/modals/BuyNowModal';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 
 const ListingDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { showToast } = useToast();
+  const { user, isLoggedIn } = useAuth();
+  const [chatLoading, setChatLoading] = useState(false);
 
   const [listing, setListing]         = useState(null);
   const [loading, setLoading]         = useState(true);
@@ -21,6 +24,24 @@ const ListingDetail = () => {
   const [showBuyModal, setShowBuyModal]       = useState(false);
   const [saved, setSaved] = useState(false);
   const [similar, setSimilar] = useState([]);
+  const [fraudFlags, setFraudFlags] = useState([]);
+
+  const handleChatSeller = async () => {
+    if (!isLoggedIn) { navigate('/login'); return; }
+    if (!listing) return;
+    setChatLoading(true);
+    try {
+      const res = await api.startConversation({
+        seller_id:  listing.seller_id || listing.seller?.id,
+        listing_id: listing.id,
+      });
+      navigate(`/chat/${res.conversationId}`);
+    } catch {
+      showToast('Could not start chat. Try again.', 'error');
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
   useEffect(() => {
     api.getListing(id)
@@ -44,6 +65,8 @@ const ListingDetail = () => {
         });
         // Check wishlist status
         api.getWishlist().then((w) => setSaved(w.some((item) => String(item.id) === String(id)))).catch(() => {});
+        // Fetch fraud flags for this listing
+        api.listingFraudFlags(id).then((r) => { if (r.flagged) setFraudFlags(r.flags); }).catch(() => {});
         // Fetch similar listings
         api.search({ category: data.category, limit: 4 }).then((r) => {
           const items = r.results || r;
@@ -107,6 +130,34 @@ const ListingDetail = () => {
           <span className="material-symbols-outlined text-[14px]">chevron_right</span>
           <span className="text-[#1b1c1c]">Listing Detail</span>
         </div>
+
+        {/* AI Fraud Warning Banner */}
+        {fraudFlags.length > 0 && (
+          <div className="mb-6 rounded-2xl border-2 border-red-200 bg-red-50 p-5">
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined text-red-500 text-[28px] mt-0.5">gpp_bad</span>
+              <div className="flex-1">
+                <p className="font-black text-red-700 text-[15px] mb-1">⚠ AI Fraud Detection Alert</p>
+                <p className="text-red-600 text-[13px] mb-3">Our AI system has flagged this listing as potentially suspicious. Proceed with caution.</p>
+                <div className="flex flex-col gap-1.5">
+                  {fraudFlags.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                        f.type === 'low_price_flag'  ? 'bg-orange-100 text-orange-700' :
+                        f.type === 'high_price_flag' ? 'bg-red-100 text-red-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {f.type === 'low_price_flag'  ? 'PRICE TOO LOW' :
+                         f.type === 'high_price_flag' ? 'PRICE TOO HIGH' : 'SPAM'}
+                      </span>
+                      <span className="text-[12px] text-red-600">{f.rule}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-16">
@@ -214,11 +265,16 @@ const ListingDetail = () => {
               </button>
               <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={() => navigate('/inbox')}
-                  className="bg-[#ff6b1a] text-white py-3.5 rounded-xl font-bold text-[15px] flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-orange-200 transition-all active:scale-95"
+                  onClick={handleChatSeller}
+                  disabled={chatLoading}
+                  className="bg-[#ff6b1a] text-white py-3.5 rounded-xl font-bold text-[15px] flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-orange-200 transition-all active:scale-95 disabled:opacity-60"
                 >
-                  <span className="material-symbols-outlined text-[20px]">chat</span>
-                  Chat with Seller
+                  {chatLoading ? (
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <span className="material-symbols-outlined text-[20px]">chat</span>
+                  )}
+                  {chatLoading ? 'Opening…' : 'Chat with Seller'}
                 </button>
                 <button
                   onClick={() => setShowOfferModal(true)}

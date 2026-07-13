@@ -13,6 +13,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U campustrade"]
       interval: 10s
@@ -82,6 +83,7 @@ services:
       DB_PASSWORD: campustrade_pass
       DB_NAME: campustrade
       JWT_SECRET: ${JWT_SECRET:-campustrade_secret}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-81640689481-v4fppdfndv88nee0f1kh23civ41ik16p.apps.googleusercontent.com}
       REDIS_HOST: redis
       REDIS_PORT: 6379
     depends_on:
@@ -286,33 +288,61 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       FROM_EMAIL: ${FROM_EMAIL:-noreply@campustrade.cm}
       FRONTEND_URL: http://localhost:5173
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_EMAIL: ${VAPID_EMAIL:-mailto:admin@example.com}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8080
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-81640689481-v4fppdfndv88nee0f1kh23civ41ik16p.apps.googleusercontent.com}
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+
   # ── Monitoring ────────────────────────────────────────────────────────────
 
   prometheus:
-    image: prom/prometheus:v2.51
+    image: prom/prometheus:v3.12.0
     restart: unless-stopped
     ports:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
 
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.11.1
+    restart: unless-stopped
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/containers/storage/.+)($$|/)
+    volumes:
+      - /:/host:ro,rslave
+    security_opt:
+      - no-new-privileges:true
+
   grafana:
-    image: grafana/grafana:10.4
+    image: grafana/grafana:13.0.2
     restart: unless-stopped
     ports:
       - "3009:3000"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
@@ -329,6 +359,7 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - api-gateway
+      - frontend
 
 volumes:
   postgres_data:
