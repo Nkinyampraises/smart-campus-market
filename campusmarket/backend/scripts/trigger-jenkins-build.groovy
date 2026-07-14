@@ -1,6 +1,7 @@
 import hudson.model.Cause
-import hudson.util.Timer
+import hudson.model.CauseAction
 import jenkins.model.Jenkins
+import jenkins.util.Timer
 import java.util.concurrent.TimeUnit
 
 def hookFile = new File('/var/lib/jenkins/init.groovy.d/50-campustrade-trigger.groovy')
@@ -16,10 +17,9 @@ Timer.get().schedule({
   }
 
   if (!job.isInQueue() && !job.isBuilding()) {
-    def future = job.scheduleBuild2(
-      0,
+    def future = job.scheduleBuild2(0, new CauseAction(
       new Cause.RemoteCause('127.0.0.1', 'Post-push production verification')
-    )
+    ))
     println("CampusTrade one-shot trigger scheduled: ${future != null}")
   }
 } as Runnable, 45, TimeUnit.SECONDS)
