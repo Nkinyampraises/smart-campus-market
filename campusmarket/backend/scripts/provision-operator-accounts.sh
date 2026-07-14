@@ -46,7 +46,7 @@ required=(
   JENKINS_USERNAME JENKINS_PASSWORD GRAFANA_USERNAME GRAFANA_PASSWORD
   SONAR_USERNAME SONAR_PASSWORD CAMPUSTRADE_ADMIN_EMAIL
   CAMPUSTRADE_ADMIN_PASSWORD CAMPUSTRADE_DEMO_EMAIL CAMPUSTRADE_DEMO_PASSWORD
-  GRAFANA_USER GRAFANA_PASS POSTGRES_USER POSTGRES_DB
+  GRAFANA_USER GRAFANA_PASS DB_USER DB_NAME
 )
 for variable in "${required[@]}"; do
   [[ -n "${!variable:-}" ]] || { echo "Required variable is empty: $variable" >&2; exit 1; }
@@ -126,7 +126,7 @@ echo 'Provisioning CampusTrade administrator and demonstration accounts...'
 register_campustrade_user "$CAMPUSTRADE_ADMIN_EMAIL" "$CAMPUSTRADE_ADMIN_PASSWORD" CampusTrade Administrator
 register_campustrade_user "$CAMPUSTRADE_DEMO_EMAIL" "$CAMPUSTRADE_DEMO_PASSWORD" Demo Student
 k3s kubectl -n campustrade exec postgres-0 -- \
-  psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" \
   -v admin_email="$CAMPUSTRADE_ADMIN_EMAIL" \
   -c "UPDATE users SET role='admin' WHERE email=:'admin_email';" >/dev/null
 
@@ -172,4 +172,3 @@ curl -fsS -u "$JENKINS_USERNAME:$JENKINS_PASSWORD" \
 chmod 0600 "$credential_file"
 chown root:root "$credential_file"
 echo "Operator accounts are ready. Credentials remain root-only at $credential_file"
-
