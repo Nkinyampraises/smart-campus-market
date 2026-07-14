@@ -71,6 +71,11 @@ EXPECTED_PUBLIC_IP=203.0.113.10 PUBLIC_IP_OVERRIDE=203.0.113.10 \
 DRY_RUN=true bash "$scripts_dir/rebuild-vps-from-scratch.sh" >"$work_dir/rebuild-dry-run.log"
 grep -q 'Dry run passed' "$work_dir/rebuild-dry-run.log"
 
+# A retry after a partial cleanup must retain the already preserved external
+# configuration rather than replacing it with an empty file.
+grep -Fq 'elif [[ ! -f' "$scripts_dir/rebuild-vps-from-scratch.sh"
+grep -Fq '/var/lib/kubelet/*' "$scripts_dir/rebuild-vps-from-scratch.sh"
+
 for script in \
   generate-production-env.sh bootstrap-jenkins.sh rebuild-vps-from-scratch.sh \
   seed-production-data.sh verify-production-seed.sh

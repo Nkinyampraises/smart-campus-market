@@ -61,7 +61,7 @@ external_env="$bootstrap_state/existing-backend.env"
 install -d -o root -g root -m 0700 "$bootstrap_state"
 if [[ -r "$deployment_root/shared/backend.env" ]]; then
   install -o root -g root -m 0600 "$deployment_root/shared/backend.env" "$external_env"
-else
+elif [[ ! -f "$external_env" ]]; then
   : >"$external_env"
   chmod 0600 "$external_env"
 fi
@@ -75,6 +75,19 @@ if [[ -r "$deployment_root/shared/backend.env" && -f "$deployment_root/current/b
     down --volumes --remove-orphans || true
 fi
 systemctl stop k3s || true
+
+# K3s may leave projected tmpfs and local-path PVC bind mounts below kubelet
+# after the service stops. Remove only mounts whose targets are inside the
+# allowlisted kubelet tree, deepest first, so cleanup is both safe and resumable.
+mapfile -t kubelet_mounts < <(
+  findmnt -Rnr -o TARGET /var/lib/kubelet 2>/dev/null | sort -r || true
+)
+for mount_target in "${kubelet_mounts[@]}"; do
+  case "$mount_target" in
+    /var/lib/kubelet/*) umount --lazy -- "$mount_target" || true ;;
+    *) echo "Unsafe K3s mount target rejected: $mount_target" >&2; exit 1 ;;
+  esac
+done
 
 echo 'Deleting application, CI, analysis, orchestration, monitoring, and database state...'
 for path in "${wipe_paths[@]}"; do
