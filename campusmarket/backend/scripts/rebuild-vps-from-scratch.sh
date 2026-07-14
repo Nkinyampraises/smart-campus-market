@@ -109,6 +109,15 @@ echo 'Deleting application, CI, analysis, orchestration, monitoring, and databas
 for path in "${wipe_paths[@]}"; do
   rm -rf --one-file-system -- "$path"
 done
+
+# Docker's system containerd can restart while orphaned K3s shims are being
+# terminated. Reconnect dockerd deterministically before the required prune.
+systemctl restart containerd docker
+for _ in $(seq 1 30); do
+  docker info >/dev/null 2>&1 && break
+  sleep 2
+done
+docker info >/dev/null
 docker system prune --all --force --volumes >/dev/null
 
 echo 'Cloning the reviewed production source from GitHub...'

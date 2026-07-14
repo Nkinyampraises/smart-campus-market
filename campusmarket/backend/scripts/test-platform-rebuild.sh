@@ -78,6 +78,7 @@ grep -Fq 'findmnt -rn -o TARGET' "$scripts_dir/rebuild-vps-from-scratch.sh"
 grep -Fq '/var/lib/kubelet/*' "$scripts_dir/rebuild-vps-from-scratch.sh"
 grep -Fq '/run/k3s/*' "$scripts_dir/rebuild-vps-from-scratch.sh"
 grep -Fq 'containerd.sock' "$scripts_dir/rebuild-vps-from-scratch.sh"
+grep -Fq 'systemctl restart containerd docker' "$scripts_dir/rebuild-vps-from-scratch.sh"
 
 for script in \
   generate-production-env.sh bootstrap-jenkins.sh rebuild-vps-from-scratch.sh \
