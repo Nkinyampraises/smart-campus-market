@@ -75,6 +75,16 @@ pipeline {
               kustomize k8s/base >/tmp/campustrade-kubernetes.yaml
 
             test "$(grep -c '^kind: Deployment$' /tmp/campustrade-kubernetes.yaml)" -ge 12
+            awk '
+              /^kind: Deployment$/ { deployment = 1; name = ""; recreate = 0; next }
+              deployment && /^  name: (grafana|prometheus)$/ { name = $2 }
+              deployment && /^    type: Recreate$/ { recreate = 1 }
+              /^---$/ {
+                if (name != "" && recreate == 1) protected_hostport_deployments++
+                deployment = 0
+              }
+              END { exit protected_hostport_deployments == 2 ? 0 : 1 }
+            ' /tmp/campustrade-kubernetes.yaml
             bash backend/scripts/test-platform-rebuild.sh
           '''
         }
