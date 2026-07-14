@@ -75,6 +75,7 @@ pipeline {
               kustomize k8s/base >/tmp/campustrade-kubernetes.yaml
 
             test "$(grep -c '^kind: Deployment$' /tmp/campustrade-kubernetes.yaml)" -ge 12
+            bash backend/scripts/test-platform-rebuild.sh
           '''
         }
       }

@@ -95,6 +95,10 @@ secrets, OAuth secrets, and the Grafana bootstrap password remain in
 encrypted in the Jenkins credential store. Never paste either secret file into
 chat, screenshots, issues, or Git commits.
 
+The same credential file contains four seeded marketplace identities. Retrieve
+their passwords only when a demonstration requires those accounts; do not copy
+the file into a user home directory.
+
 ## 5. Fast health check
 
 Run this after every restart or deployment:
@@ -465,3 +469,56 @@ not run under a reverse-proxy subpath in this deployment; changing `root_url` or
   full control to authenticated users and blocks anonymous access.
 - Back up data before database, SonarQube, or Kubernetes upgrades.
 - Make production changes through GitHub and the green Jenkins pipeline.
+
+## 16. Verify or refresh production demonstration data
+
+The production seed contains six usable identities, 12 product/service
+listings, 13 HTTPS product images, wishlists, offers, chat messages, a completed
+transaction, a review, notifications, and moderation examples. It is safe to
+run repeatedly:
+
+```bash
+sudo bash /srv/campustrade/current/backend/scripts/seed-production-data.sh
+sudo bash /srv/campustrade/current/backend/scripts/verify-production-seed.sh
+```
+
+The verifier checks fixed record counts, exactly one account per expected
+email, public listings and images, search, representative logins, and remote
+image delivery. A passing run prints counts but never credentials.
+
+## 17. Perform a clean platform rebuild
+
+This is a disaster-recovery operation, not routine maintenance. It deletes all
+CampusTrade application/database data, K3s state, Jenkins configuration and
+history, SonarQube data, monitoring data, and Docker images/volumes. It preserves
+the operating system, SSH access, the `azureuser` account, and base networking.
+
+First confirm the reviewed changes are on GitHub `main` and validate the target
+without changing it:
+
+```bash
+cd /srv/campustrade/current
+sudo env \
+  CONFIRM_RESET=DELETE_CAMPUSTRADE_PLATFORM \
+  EXPECTED_PUBLIC_IP=4.168.192.5 \
+  PUBLIC_IP_OVERRIDE=4.168.192.5 \
+  DRY_RUN=true \
+  bash backend/scripts/rebuild-vps-from-scratch.sh
+```
+
+Read the printed allowlist carefully. For an authorized rebuild, omit the dry
+run variables:
+
+```bash
+cd /srv/campustrade/current
+sudo env \
+  CONFIRM_RESET=DELETE_CAMPUSTRADE_PLATFORM \
+  EXPECTED_PUBLIC_IP=4.168.192.5 \
+  bash backend/scripts/rebuild-vps-from-scratch.sh
+```
+
+The command verifies the VPS public IP independently, rotates internal secrets,
+reinstalls the pinned Jenkins plugin closure, provisions K3s and SonarQube,
+waits for the clean Jenkins/SonarQube pipeline, deploys, seeds, smoke-tests, and
+captures evidence. A nonzero exit means the rebuild did not meet acceptance;
+inspect the last command output and the relevant service logs before retrying.

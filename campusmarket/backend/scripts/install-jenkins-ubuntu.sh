@@ -31,15 +31,20 @@ $SUDO install -d -o root -g root -m 0755 /etc/systemd/system/jenkins.service.d
 
 $SUDO tee /etc/systemd/system/jenkins.service.d/override.conf >/dev/null <<'EOF'
 [Service]
-Environment="JAVA_OPTS=-Djava.awt.headless=true -Xms512m -Xmx2g"
+Environment="JAVA_OPTS=-Djava.awt.headless=true -Djenkins.install.runSetupWizard=false -Xms512m -Xmx2g"
 Environment="JENKINS_OPTS=--httpListenAddress=127.0.0.1 --httpPort=8080"
 EOF
 
 $SUDO chmod 0600 /etc/systemd/system/jenkins.service.d/override.conf
 $SUDO systemctl daemon-reload
-$SUDO systemctl enable --now jenkins
-$SUDO systemctl restart jenkins
+$SUDO systemctl enable jenkins
+if [[ "${START_JENKINS:-true}" == true ]]; then
+  $SUDO systemctl restart jenkins
+  echo "Jenkins is running on the VM loopback interface at http://127.0.0.1:8080."
+else
+  $SUDO systemctl stop jenkins
+  echo "Jenkins is installed and stopped pending its secured bootstrap."
+fi
 
-echo "Jenkins is running on the VM loopback interface at http://127.0.0.1:8080."
 echo "The host kernel limits required by SonarQube have been applied."
 echo "Use an SSH tunnel from your computer; do not open Azure port 8080."

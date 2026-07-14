@@ -56,6 +56,9 @@ if (envFile.isFile()) {
   } else {
     store.updateCredentials(Domain.global(), existing, replacement)
   }
+  if (!envFile.delete()) {
+    throw new IllegalStateException('The production environment credential was saved but its staging file could not be deleted.')
+  }
 }
 
 def sonarTokenFile = new File('/var/lib/jenkins/campustrade-sonar.token')

@@ -1,4 +1,5 @@
 import hudson.model.User
+import hudson.security.FullControlOnceLoggedInAuthorizationStrategy
 import hudson.security.HudsonPrivateSecurityRealm
 import jenkins.model.Jenkins
 
@@ -21,14 +22,20 @@ if (!username || !password) {
 def jenkins = Jenkins.get()
 def realm = jenkins.getSecurityRealm()
 if (!(realm instanceof HudsonPrivateSecurityRealm)) {
-  throw new IllegalStateException('Jenkins is not using its private user database.')
+  realm = new HudsonPrivateSecurityRealm(false)
+  jenkins.setSecurityRealm(realm)
 }
+
+def authorization = new FullControlOnceLoggedInAuthorizationStrategy()
+authorization.setAllowAnonymousRead(false)
+jenkins.setAuthorizationStrategy(authorization)
 
 if (User.getById(username, false) == null) {
   def account = realm.createAccount(username, password)
   account.setFullName('CampusTrade Administrator')
   account.save()
 }
+jenkins.save()
 
 if (!credentialFile.delete()) {
   throw new IllegalStateException('Jenkins created the operator but could not remove the staged secret.')
@@ -36,4 +43,3 @@ if (!credentialFile.delete()) {
 if (!hookFile.delete()) {
   throw new IllegalStateException('Jenkins could not remove the one-shot operator hook.')
 }
-
