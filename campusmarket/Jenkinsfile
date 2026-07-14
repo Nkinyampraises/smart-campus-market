@@ -218,7 +218,9 @@ pipeline {
               test -d "$DEPLOY_ROOT"
               test -w "$DEPLOY_ROOT/current"
               mkdir -p "$DEPLOY_ROOT/current" "$DEPLOY_ROOT/backups" "$DEPLOY_ROOT/evidence"
-              rsync -rlp --delete \
+              # Existing release directories are root-owned and group-writable.
+              # Copy content and links without attempting privileged metadata changes.
+              rsync -rl --delete \
                 --exclude '.git' \
                 --exclude 'node_modules' \
                 --exclude 'coverage' \
