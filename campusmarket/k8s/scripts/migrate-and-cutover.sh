@@ -20,7 +20,11 @@ set +a
 : "${DB_USER:?DB_USER is required}"
 : "${DB_NAME:?DB_NAME is required}"
 
-install -d -m 0750 "$backup_dir"
+mkdir -p "$backup_dir"
+[[ -w "$backup_dir" ]] || {
+  echo "Backup directory is not writable: $backup_dir" >&2
+  exit 1
+}
 docker container inspect campusmarket-postgres-1 >/dev/null
 docker exec campusmarket-postgres-1 pg_dump -Fc -U "$DB_USER" -d "$DB_NAME" >"$backup_file"
 test -s "$backup_file"

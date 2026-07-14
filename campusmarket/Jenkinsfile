@@ -239,10 +239,11 @@ pipeline {
                 ENV_FILE=backend/.env \
                 bash k8s/scripts/build-and-import-images.sh
 
-              if [ ! -f "$DEPLOY_ROOT/shared/k3s-cutover-complete" ]; then
+              cutover_marker="$DEPLOY_ROOT/k3s-cutover-complete"
+              if [ ! -f "$cutover_marker" ]; then
                 IMAGE_TAG="$release_tag" ENV_FILE=backend/.env \
                   bash k8s/scripts/migrate-and-cutover.sh
-                date -u +'%Y-%m-%dT%H:%M:%SZ' >"$DEPLOY_ROOT/shared/k3s-cutover-complete"
+                date -u +'%Y-%m-%dT%H:%M:%SZ' >"$cutover_marker"
               else
                 IMAGE_TAG="$release_tag" ENV_FILE=backend/.env \
                   bash k8s/scripts/deploy.sh full
