@@ -12,8 +12,9 @@ A full-stack microservices application for campus-based buying and selling.
 - **Communication**: Redis Pub/Sub events for async service coordination
 - **Containerization**: Docker
 - **Orchestration**: Docker Compose on the Azure test VM
-- **CI/CD**: Jenkins
-- **Monitoring**: Prometheus + Grafana
+- **CI/CD**: Jenkins with dependency, container, and SonarQube quality gates
+- **Monitoring**: Prometheus + Grafana, with Jenkins system-status reports
+- **Code quality**: SonarQube Community Build
 
 ## Getting Started
 
@@ -36,8 +37,9 @@ The deployed Azure environment is defined by
 the repository from GitHub, run the release gates, and optionally update the
 Azure test VM from `main`.
 
-See `backend/PRODUCTION.md` for deployment and `backend/OPERATIONS.md` for
-Jenkins, Grafana, and Prometheus access.
+See `backend/PRODUCTION.md` for deployment, `backend/OPERATIONS.md` for
+Jenkins/Grafana/Prometheus/SonarQube access, and `backend/SONARQUBE.md` for the
+one-time quality-gate setup.
 
 ## Project Structure
 

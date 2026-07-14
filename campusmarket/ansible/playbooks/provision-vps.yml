@@ -1,0 +1,146 @@
+---
+- name: Provision CampusTrade Kubernetes VPS
+  hosts: campustrade
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+  tasks:
+    - name: Assert supported production host
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.os_family == 'Debian'
+          - ansible_facts.architecture in ['x86_64', 'amd64']
+          - ansible_facts.memtotal_mb >= 7000
+        fail_msg: CampusTrade requires a Debian-family x86_64 VPS with at least 7 GB RAM.
+
+    - name: Install host packages
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - docker.io
+          - docker-compose-v2
+          - git
+          - jq
+          - openjdk-21-jre
+          - python3
+          - rsync
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create Kubernetes administration group
+      ansible.builtin.group:
+        name: "{{ deployment_group }}"
+        system: true
+        state: present
+
+    - name: Grant deployment users least required local groups
+      ansible.builtin.user:
+        name: "{{ item.name }}"
+        groups: "{{ item.groups }}"
+        append: true
+      loop:
+        - { name: "{{ deployment_user }}", groups: "docker,{{ deployment_group }}" }
+        - { name: jenkins, groups: "docker,{{ deployment_group }}" }
+
+    - name: Allow Jenkins to operate only the K3s client and image importer
+      ansible.builtin.copy:
+        dest: /etc/sudoers.d/campustrade-jenkins-k3s
+        owner: root
+        group: root
+        mode: '0440'
+        validate: /usr/sbin/visudo -cf %s
+        content: |
+          jenkins ALL=(root) NOPASSWD: /usr/local/bin/k3s kubectl *, /usr/local/bin/k3s ctr *
+
+    - name: Install SonarQube and Kubernetes kernel limits
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/99-campustrade.conf
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          vm.max_map_count=524288
+          fs.file-max=131072
+          net.ipv4.ip_forward=1
+          net.bridge.bridge-nf-call-iptables=1
+      notify: Reload sysctl
+
+    - name: Keep UFW disabled for K3s overlay networking
+      ansible.builtin.command: ufw --force disable
+      changed_when: false
+      failed_when: false
+
+    - name: Create production directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ deployment_user }}"
+        group: "{{ deployment_group }}"
+        mode: '2770'
+      loop:
+        - "{{ deployment_root }}"
+        - "{{ deployment_root }}/current"
+        - "{{ deployment_root }}/shared"
+        - "{{ deployment_root }}/backups"
+        - "{{ deployment_root }}/evidence"
+
+    - name: Install pinned K3s binary with checksum verification
+      ansible.builtin.get_url:
+        url: "https://github.com/k3s-io/k3s/releases/download/{{ k3s_version }}/k3s"
+        dest: /usr/local/bin/k3s
+        checksum: "sha256:{{ k3s_sha256 }}"
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Install K3s systemd unit
+      ansible.builtin.template:
+        src: ../templates/k3s.service.j2
+        dest: /etc/systemd/system/k3s.service
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart K3s
+
+    - name: Enable and start K3s
+      ansible.builtin.systemd_service:
+        name: k3s
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for Kubernetes API readiness
+      ansible.builtin.command: /usr/local/bin/k3s kubectl get --raw=/readyz
+      register: k3s_ready
+      changed_when: false
+      retries: 30
+      delay: 5
+      until: k3s_ready.rc == 0
+
+    - name: Report Kubernetes node
+      ansible.builtin.command: /usr/local/bin/k3s kubectl get nodes -o wide
+      register: node_result
+      changed_when: false
+
+    - name: Print Kubernetes node evidence
+      ansible.builtin.debug:
+        var: node_result.stdout_lines
+
+    - name: Restart Jenkins after deployment group changes
+      ansible.builtin.systemd_service:
+        name: jenkins
+        state: restarted
+
+  handlers:
+    - name: Reload sysctl
+      ansible.builtin.command: sysctl --system
+      changed_when: true
+
+    - name: Restart K3s
+      ansible.builtin.systemd_service:
+        name: k3s
+        state: restarted
+        daemon_reload: true

@@ -1,6 +1,6 @@
 # CampusTrade Test VM Operations
 
-## Securely open Jenkins, Grafana, and Prometheus
+## Securely open Jenkins, Grafana, Prometheus, and SonarQube
 
 Keep this SSH command running in a PowerShell window on your computer:
 
@@ -9,6 +9,7 @@ ssh -i "C:\path\to\your-private-key.pem" `
   -L 8080:127.0.0.1:8080 `
   -L 3009:127.0.0.1:3009 `
   -L 9090:127.0.0.1:9090 `
+  -L 9000:127.0.0.1:9000 `
   azureuser@<vm-public-ip>
 ```
 
@@ -17,9 +18,22 @@ Then open these local addresses:
 - Jenkins: <http://localhost:8080>
 - Grafana: <http://localhost:3009>
 - Prometheus: <http://localhost:9090>
+- SonarQube: <http://localhost:9000>
 
 The traffic is encrypted inside SSH. Azure inbound rules are not required for
-ports 8080, 3009, or 9090.
+ports 8080, 3009, 9090, or 9000.
+
+## Jenkins operations view
+
+Every pipeline run probes Jenkins, Grafana, Prometheus, and SonarQube, then
+places a concise status line directly in the Jenkins build description. Open
+the archived `ci-reports/system-information.html` artifact for the full host
+view: service readiness, Prometheus target count, containers, kernel, uptime,
+CPU/load, memory, disk, and Docker Engine version.
+
+The report does not contain credentials. `UNREACHABLE` means the service could
+not be contacted from the Jenkins host at capture time; it does not silently
+turn a failed probe green.
 
 ## First Jenkins login
 
@@ -41,6 +55,13 @@ Do not send or screenshot this password. Paste it into the Jenkins page, select
 5. Set the credential ID to `campustrade-prod-env`.
 
 Never commit `backend/.env` to Git.
+
+## Create the SonarQube credential
+
+Complete the one-time SonarQube bootstrap in `SONARQUBE.md`, then add its
+project analysis token in **Manage Jenkins > Credentials** as **Secret text**
+with credential ID `campustrade-sonar-token`. The pipeline masks the token and
+passes it only to the short-lived official scanner container.
 
 ## GitHub-connected pipeline
 
@@ -64,11 +85,13 @@ and restart Jenkins.
 7. Set the script path to `campusmarket/Jenkinsfile`.
 8. Save, then choose **Build Now**.
 
-Only Jenkins connects to GitHub. Grafana reads Prometheus, and Prometheus
-scrapes the running application and VM. The pipeline checks GitHub every five
+Only Jenkins connects to GitHub. Grafana reads Prometheus, Prometheus scrapes
+the running application and VM, and Jenkins submits source analysis to the
+loopback-only SonarQube service. The pipeline checks GitHub every five
 minutes. It validates Compose, lints and
 builds the frontend, tests every backend service, runs production dependency
-audits, and builds the production images. Deployment runs only from `main` and
+audits, enforces the SonarQube quality gate, and builds the production images.
+Deployment runs only from `main` and
 only when the `DEPLOY_TO_TEST` parameter is explicitly enabled.
 
 ## Grafana

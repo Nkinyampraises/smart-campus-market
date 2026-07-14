@@ -10,9 +10,14 @@ pipeline {
 
   parameters {
     booleanParam(
-      name: 'DEPLOY_TO_TEST',
-      defaultValue: false,
-      description: 'Deploy the verified main branch to the Azure test VM.'
+      name: 'DEPLOY_TO_VPS',
+      defaultValue: true,
+      description: 'Deploy a verified main-branch release to the production K3s VPS.'
+    )
+    booleanParam(
+      name: 'RUN_SONARQUBE',
+      defaultValue: true,
+      description: 'Analyze the repository and enforce the SonarQube quality gate.'
     )
   }
 
@@ -26,12 +31,29 @@ pipeline {
     DEPLOY_COMPOSE_PROJECT_NAME = 'campusmarket'
     COMPOSE_FILE = 'backend/docker-compose.prod.yml'
     DEPLOY_ROOT = '/srv/campustrade'
+    SONAR_HOST_URL = 'http://127.0.0.1:9000'
+    SONAR_SCANNER_IMAGE = 'sonarsource/sonar-scanner-cli:12.1.0.3233_8.0.1'
+    KUBECTL_IMAGE = 'registry.k8s.io/kubectl:v1.36.1'
   }
 
   stages {
     stage('Checkout') {
       steps {
         checkout scm
+      }
+    }
+
+    stage('System Information') {
+      steps {
+        dir('campusmarket') {
+          script {
+            def summary = sh(
+              script: 'sh backend/scripts/generate-system-information.sh ci-reports',
+              returnStdout: true
+            ).trim()
+            currentBuild.description = summary.take(240)
+          }
+        }
       }
     }
 
@@ -44,6 +66,15 @@ pipeline {
               --env-file backend/.env.example \
               -f "$COMPOSE_FILE" \
               config --quiet
+
+            docker run --rm \
+              --user "$(id -u):$(id -g)" \
+              -v "$PWD:/workspace" \
+              -w /workspace \
+              "$KUBECTL_IMAGE" \
+              kustomize k8s/base >/tmp/campustrade-kubernetes.yaml
+
+            test "$(grep -c '^kind: Deployment$' /tmp/campustrade-kubernetes.yaml)" -ge 12
           '''
         }
       }
@@ -75,8 +106,37 @@ pipeline {
               -v "$PWD:/workspace" \
               -w /workspace \
               "$NODE_IMAGE" \
-              sh -lc 'npm run install:backend && npm run build:backend && npm run test:backend && npm run audit:backend'
+              sh -lc 'npm run install:backend && npm run build:backend && npm run test:backend && npm run coverage:backend && npm run audit:backend'
           '''
+        }
+      }
+    }
+
+    stage('SonarQube Quality Gate') {
+      when {
+        expression { params.RUN_SONARQUBE }
+      }
+      steps {
+        withCredentials([string(credentialsId: 'campustrade-sonar-token', variable: 'SONAR_TOKEN')]) {
+          dir('campusmarket') {
+            sh '''
+              curl --fail --silent --show-error \
+                --retry 12 --retry-delay 5 --retry-connrefused \
+                "$SONAR_HOST_URL/api/system/status" >/dev/null
+
+              docker run --rm \
+                --network host \
+                --user "$(id -u):$(id -g)" \
+                -e SONAR_HOST_URL \
+                -e SONAR_TOKEN \
+                -e SONAR_USER_HOME=/tmp/.sonar \
+                -v "$PWD:/usr/src" \
+                -w /usr/src \
+                "$SONAR_SCANNER_IMAGE" \
+                -Dsonar.qualitygate.wait=true \
+                -Dsonar.qualitygate.timeout=300
+            '''
+          }
         }
       }
     }
@@ -126,7 +186,7 @@ pipeline {
       }
     }
 
-    stage('Deploy Azure Test') {
+    stage('Deploy Production K3s') {
       when {
         allOf {
           expression {
@@ -134,7 +194,7 @@ pipeline {
               env.GIT_BRANCH == 'main' ||
               env.GIT_BRANCH == 'origin/main'
           }
-          expression { params.DEPLOY_TO_TEST }
+          expression { params.DEPLOY_TO_VPS }
         }
       }
       steps {
@@ -142,25 +202,52 @@ pipeline {
           dir('campusmarket') {
             sh '''
               test -d "$DEPLOY_ROOT"
-              rsync -a --delete --exclude 'backend/.env' ./ "$DEPLOY_ROOT/"
-              install -m 600 "$PROD_ENV_FILE" "$DEPLOY_ROOT/backend/.env"
+              install -d -m 2770 "$DEPLOY_ROOT/current" "$DEPLOY_ROOT/backups" "$DEPLOY_ROOT/evidence"
+              rsync -a --delete \
+                --exclude '.git' \
+                --exclude 'node_modules' \
+                --exclude 'coverage' \
+                --exclude 'backend/.env' \
+                ./ "$DEPLOY_ROOT/current/"
+              install -m 640 "$PROD_ENV_FILE" "$DEPLOY_ROOT/current/backend/.env"
 
-              cd "$DEPLOY_ROOT"
+              cd "$DEPLOY_ROOT/current"
+              chmod 750 k8s/scripts/*.sh backend/scripts/*.sh
+              release_tag="${GIT_COMMIT:-build-$BUILD_NUMBER}"
+              release_tag="$(printf '%s' "$release_tag" | cut -c1-12)"
+
+              SKIP_BUILD=true \
+                SOURCE_PROJECT="$CI_COMPOSE_PROJECT_NAME" \
+                IMAGE_TAG="$release_tag" \
+                ENV_FILE=backend/.env \
+                bash k8s/scripts/build-and-import-images.sh
+
+              if [ ! -f "$DEPLOY_ROOT/shared/k3s-cutover-complete" ]; then
+                IMAGE_TAG="$release_tag" ENV_FILE=backend/.env \
+                  bash k8s/scripts/migrate-and-cutover.sh
+                date -u +'%Y-%m-%dT%H:%M:%SZ' >"$DEPLOY_ROOT/shared/k3s-cutover-complete"
+              else
+                IMAGE_TAG="$release_tag" ENV_FILE=backend/.env \
+                  bash k8s/scripts/deploy.sh full
+                BASE_URL=http://127.0.0.1 bash backend/scripts/smoke-test-running.sh
+              fi
+
               docker compose \
                 -p "$DEPLOY_COMPOSE_PROJECT_NAME" \
                 --env-file backend/.env \
                 -f "$COMPOSE_FILE" \
-                up -d --build --remove-orphans
+                up -d sonar-db sonarqube
 
-              docker compose \
-                -p "$DEPLOY_COMPOSE_PROJECT_NAME" \
-                --env-file backend/.env \
-                -f "$COMPOSE_FILE" \
-                exec -T postgres \
-                sh -lc 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
-                < backend/init.sql
+              for attempt in $(seq 1 60); do
+                sonar_status="$(curl -fsS http://127.0.0.1:9000/api/system/status 2>/dev/null | jq -r '.status // empty' || true)"
+                [ "$sonar_status" = UP ] && break
+                sleep 5
+              done
+              [ "${sonar_status:-}" = UP ]
 
-              backend/scripts/smoke-test-running.sh
+              BUILD_NUMBER="$BUILD_NUMBER" \
+                EVIDENCE_DIR="$WORKSPACE/evidence/build-$BUILD_NUMBER" \
+                bash k8s/scripts/capture-evidence.sh
             '''
           }
         }
@@ -170,8 +257,19 @@ pipeline {
 
   post {
     always {
+      script {
+        if (fileExists('campusmarket/backend/scripts/generate-system-information.sh')) {
+          dir('campusmarket') {
+            def summary = sh(
+              script: 'sh backend/scripts/generate-system-information.sh ci-reports',
+              returnStdout: true
+            ).trim()
+            currentBuild.description = summary.take(240)
+          }
+        }
+      }
       archiveArtifacts(
-        artifacts: 'campusmarket/frontend/dist/**,campusmarket/backend/RELEASE_GATE_CHECKLIST.md,campusmarket/backend/PRODUCTION.md',
+        artifacts: 'campusmarket/frontend/dist/**,campusmarket/coverage/**,campusmarket/evidence/**,campusmarket/ci-reports/**,campusmarket/backend/RELEASE_GATE_CHECKLIST.md,campusmarket/backend/PRODUCTION.md,campusmarket/docs/**',
         allowEmptyArchive: true,
         fingerprint: true
       )

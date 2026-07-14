@@ -1,0 +1,90 @@
+---
+- name: Deploy CampusTrade platform to K3s
+  hosts: campustrade
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+  vars:
+    deployment_mode: full
+    image_tag: production
+  tasks:
+    - name: Validate deployment mode
+      ansible.builtin.assert:
+        that: deployment_mode in ['data-only', 'full']
+        fail_msg: deployment_mode must be data-only or full.
+
+    - name: Synchronize reviewed source into deployment root
+      ansible.builtin.command:
+        argv:
+          - rsync
+          - -a
+          - --delete
+          - --exclude=.git
+          - --exclude=node_modules
+          - --exclude=dist
+          - --exclude=coverage
+          - --exclude=evidence
+          - --exclude=backend/.env
+          - "{{ deployment_source }}/"
+          - "{{ deployment_root }}/current/"
+      register: sync_result
+      changed_when: sync_result.rc == 0
+
+    - name: Preserve protected production environment
+      ansible.builtin.copy:
+        src: "{{ deployment_source }}/backend/.env"
+        dest: "{{ deployment_root }}/shared/backend.env"
+        remote_src: true
+        owner: "{{ deployment_user }}"
+        group: "{{ deployment_group }}"
+        mode: '0640'
+      no_log: true
+
+    - name: Link protected environment into release
+      ansible.builtin.file:
+        src: "{{ deployment_root }}/shared/backend.env"
+        dest: "{{ deployment_root }}/current/backend/.env"
+        state: link
+        force: true
+
+    - name: Ensure deployment scripts are executable
+      ansible.builtin.file:
+        path: "{{ deployment_root }}/current/{{ item }}"
+        mode: '0750'
+      loop:
+        - k8s/scripts/build-and-import-images.sh
+        - k8s/scripts/deploy.sh
+        - k8s/scripts/migrate-and-cutover.sh
+        - k8s/scripts/rollback-to-compose.sh
+        - k8s/scripts/capture-evidence.sh
+        - backend/scripts/smoke-test-running.sh
+        - backend/scripts/generate-system-information.sh
+
+    - name: Build and import immutable application images
+      ansible.builtin.command: k8s/scripts/build-and-import-images.sh
+      args:
+        chdir: "{{ deployment_root }}/current"
+      environment:
+        ENV_FILE: backend/.env
+        IMAGE_TAG: "{{ image_tag }}"
+      when: deployment_mode == 'full'
+
+    - name: Apply requested Kubernetes deployment mode
+      ansible.builtin.command: k8s/scripts/deploy.sh "{{ deployment_mode }}"
+      args:
+        chdir: "{{ deployment_root }}/current"
+      environment:
+        ENV_FILE: backend/.env
+        IMAGE_TAG: "{{ image_tag }}"
+      register: deploy_result
+      changed_when: true
+
+    - name: Capture deployment status
+      ansible.builtin.command: k3s kubectl -n campustrade get pods,svc,ingress,hpa -o wide
+      register: status_result
+      changed_when: false
+
+    - name: Print deployment status evidence
+      ansible.builtin.debug:
+        var: status_result.stdout_lines

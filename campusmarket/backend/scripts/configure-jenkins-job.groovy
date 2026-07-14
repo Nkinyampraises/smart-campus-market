@@ -2,10 +2,12 @@ import com.cloudbees.plugins.credentials.CredentialsScope
 import com.cloudbees.plugins.credentials.SecretBytes
 import com.cloudbees.plugins.credentials.SystemCredentialsProvider
 import com.cloudbees.plugins.credentials.domains.Domain
+import hudson.util.Secret
 import hudson.plugins.git.BranchSpec
 import hudson.plugins.git.GitSCM
 import jenkins.model.Jenkins
 import org.jenkinsci.plugins.plaincredentials.impl.FileCredentialsImpl
+import org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl
 import org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition
 import org.jenkinsci.plugins.workflow.job.WorkflowJob
 
@@ -27,7 +29,10 @@ definition.setLightweight(true)
 job.setDefinition(definition)
 job.setDescription(
   "CampusTrade release gates from GitHub (${branch}). " +
-  'The Jenkinsfile polls source control every five minutes.'
+  'The Jenkinsfile polls source control every five minutes. ' +
+  'Operations: Jenkins http://localhost:8080, Grafana http://localhost:3009, ' +
+  'Prometheus http://localhost:9090, SonarQube http://localhost:9000. ' +
+  'Each build archives ci-reports/system-information.html.'
 )
 job.save()
 
@@ -50,6 +55,30 @@ if (envFile.isFile()) {
     store.addCredentials(Domain.global(), replacement)
   } else {
     store.updateCredentials(Domain.global(), existing, replacement)
+  }
+}
+
+def sonarTokenFile = new File('/var/lib/jenkins/campustrade-sonar.token')
+if (sonarTokenFile.isFile()) {
+  def token = sonarTokenFile.text.trim()
+  if (!token.isEmpty()) {
+    def provider = SystemCredentialsProvider.getInstance()
+    def store = provider.getStore()
+    def replacement = new StringCredentialsImpl(
+      CredentialsScope.GLOBAL,
+      'campustrade-sonar-token',
+      'CampusTrade SonarQube analysis token',
+      Secret.fromString(token)
+    )
+    def existing = provider.getCredentials().find {
+      it.id == 'campustrade-sonar-token'
+    }
+
+    if (existing == null) {
+      store.addCredentials(Domain.global(), replacement)
+    } else {
+      store.updateCredentials(Domain.global(), existing, replacement)
+    }
   }
 }
 

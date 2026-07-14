@@ -9,6 +9,7 @@
 ## Security Gates
 - [ ] `npm audit --omit=dev --audit-level=high` passes for all backend services
 - [ ] Container scan passes with no fixable CRITICAL findings (`trivy image`)
+- [ ] SonarQube analysis completes and the project quality gate passes
 - [ ] Secrets are not hardcoded in repo
 - [ ] `JWT_SECRET` is strong and environment-injected
 
@@ -21,7 +22,7 @@
 ## Deploy Gates
 - [ ] `docker compose -f backend/docker-compose.prod.yml config` validates
 - [ ] Smoke test script passes (`backend/scripts/smoke-test.sh`)
-- [ ] Azure Compose rollout succeeds with all 16 declared services running
+- [ ] Azure Compose rollout succeeds with all 18 declared services running
 - [ ] Rollback command/procedure is documented and verified
 
 ## Post-Deploy Checks
@@ -31,3 +32,4 @@
 - [ ] Alerting channels verified (PagerDuty/Slack/email)
 - [ ] Prometheus reports every application and node-exporter target as healthy
 - [ ] Grafana provisions the CampusTrade production dashboard
+- [ ] SonarQube reports `UP` and Jenkins archives `ci-reports/system-information.html`

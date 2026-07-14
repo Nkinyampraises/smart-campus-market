@@ -67,3 +67,13 @@ This matrix documents variables actually used by code.
 
 ## Frontend
 - `VITE_API_URL` (required for non-default API gateway URL)
+
+## Observability and code quality
+- `GRAFANA_USER`, `GRAFANA_PASS` (required): Grafana administrator credentials.
+- `SONAR_DB_USER`, `SONAR_DB_PASSWORD`, `SONAR_DB_NAME` (required): credentials for SonarQube's isolated PostgreSQL database.
+- `SONAR_HOST_URL` (optional for scripts, default `http://127.0.0.1:9000`): URL Jenkins uses for analysis and system status.
+- `PROMETHEUS_URL`, `GRAFANA_URL`, `JENKINS_URL` (optional): link/probe overrides for the Jenkins system-information report.
+
+`SONAR_TOKEN` is deliberately absent from environment templates. Store it as
+the Jenkins Secret Text credential `campustrade-sonar-token`; never place it in
+an `.env` file or commit it.

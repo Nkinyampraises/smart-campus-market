@@ -37,6 +37,7 @@ Administrative services are deliberately bound to the VM loopback interface:
 - Grafana: `http://127.0.0.1:3009`
 - Prometheus: `http://127.0.0.1:9090`
 - Jenkins: `http://127.0.0.1:8080`
+- SonarQube: `http://127.0.0.1:9000`
 
 Do not create public Azure inbound rules for these ports. Use the SSH tunnel
 documented in `OPERATIONS.md`.
@@ -56,6 +57,7 @@ Set these in `backend/.env`:
 - `FRONTEND_URL` (real frontend origin)
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `FROM_EMAIL`
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL` for browser push notifications
+- `SONAR_DB_USER`, `SONAR_DB_PASSWORD`, `SONAR_DB_NAME` for SonarQube's isolated database
 
 Generate strong secrets:
 ```bash
@@ -104,6 +106,7 @@ The production Compose stack includes:
 - Grafana 13 with a provisioned Prometheus data source
 - A provisioned CampusTrade production dashboard
 - Node exporter for VM CPU, memory, filesystem, and network metrics
+- SonarQube Community Build with an isolated PostgreSQL 17 database
 - Alerts for service availability, HTTP errors, latency, disk, and memory
 
 Start or update monitoring with the same deployment command:
@@ -127,4 +130,6 @@ backend/scripts/install-jenkins-ubuntu.sh
 
 The installer binds Jenkins to `127.0.0.1:8080`, adds the Jenkins service user
 to the Docker group, and creates `/srv/campustrade` for stable deployments.
-See `OPERATIONS.md` for the one-time Jenkins UI configuration.
+See `OPERATIONS.md` for the one-time Jenkins UI configuration and
+`SONARQUBE.md` for project/token setup. The Jenkins installer also applies the
+host `vm.max_map_count` and file limits required by SonarQube.

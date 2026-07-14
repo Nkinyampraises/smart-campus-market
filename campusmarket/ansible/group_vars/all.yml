@@ -1,0 +1,7 @@
+---
+k3s_version: v1.36.1+k3s1
+k3s_sha256: a443db3fe9820cd93617ae67e4386d87c1514c1e96ceb30f4c2791c39065653c
+deployment_root: /srv/campustrade
+deployment_source: /home/azureuser/campusmarket
+deployment_user: azureuser
+deployment_group: k3s

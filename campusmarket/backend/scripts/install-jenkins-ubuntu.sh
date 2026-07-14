@@ -8,7 +8,13 @@ else
 fi
 
 $SUDO apt update
-$SUDO apt install -y ca-certificates fontconfig git openjdk-21-jre rsync wget
+$SUDO apt install -y ca-certificates curl fontconfig git jq openjdk-21-jre rsync wget
+
+$SUDO tee /etc/sysctl.d/99-sonarqube.conf >/dev/null <<'EOF'
+vm.max_map_count=524288
+fs.file-max=131072
+EOF
+$SUDO sysctl --system >/dev/null
 
 $SUDO install -d -m 0755 /etc/apt/keyrings
 $SUDO wget -qO /etc/apt/keyrings/jenkins-keyring.asc \
@@ -35,4 +41,5 @@ $SUDO systemctl enable --now jenkins
 $SUDO systemctl restart jenkins
 
 echo "Jenkins is running on the VM loopback interface at http://127.0.0.1:8080."
+echo "The host kernel limits required by SonarQube have been applied."
 echo "Use an SSH tunnel from your computer; do not open Azure port 8080."

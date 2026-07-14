@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$root_dir"
+
+env_file="${ENV_FILE:-backend/.env}"
+image_tag="${IMAGE_TAG:?Set IMAGE_TAG to the imported application image tag}"
+namespace=campustrade
+backup_dir="${BACKUP_DIR:-/srv/campustrade/backups}"
+timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+backup_file="$backup_dir/campustrade-pre-k3s-$timestamp.dump"
+kubectl="${KUBECTL:-sudo k3s kubectl}"
+
+[[ -f "$env_file" ]] || { echo "Missing protected environment file: $env_file" >&2; exit 1; }
+set -a
+# shellcheck disable=SC1090
+source "$env_file"
+set +a
+: "${DB_USER:?DB_USER is required}"
+: "${DB_NAME:?DB_NAME is required}"
+
+install -d -m 0750 "$backup_dir"
+docker container inspect campusmarket-postgres-1 >/dev/null
+docker exec campusmarket-postgres-1 pg_dump -Fc -U "$DB_USER" -d "$DB_NAME" >"$backup_file"
+test -s "$backup_file"
+chmod 0600 "$backup_file"
+
+ENV_FILE="$env_file" bash k8s/scripts/deploy.sh data-only
+$kubectl -n "$namespace" exec -i statefulset/postgres -- \
+  pg_restore --clean --if-exists --no-owner --no-acl -U "$DB_USER" -d "$DB_NAME" <"$backup_file"
+
+docker compose -p campusmarket --env-file "$env_file" \
+  -f backend/docker-compose.prod.yml down --remove-orphans
+
+IMAGE_TAG="$image_tag" ENV_FILE="$env_file" bash k8s/scripts/deploy.sh full
+$kubectl -n kube-system rollout status deployment/traefik --timeout=300s
+BASE_URL="${BASE_URL:-http://127.0.0.1}" bash backend/scripts/smoke-test-running.sh
+
+echo "Cutover succeeded. Rollback backup: $backup_file"

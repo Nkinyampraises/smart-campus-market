@@ -16,8 +16,14 @@ COPY shared/ ./shared/
 # Copy service source code
 COPY services/${SERVICE_NAME}/ ./services/${SERVICE_NAME}/
 
+RUN addgroup -S app \
+  && adduser -S -G app app \
+  && chown -R app:app /app
+
 # Set workdir to service so ../../shared/events resolves to /app/shared/events
 WORKDIR /app/services/${SERVICE_NAME}
+
+USER app
 
 EXPOSE ${PORT}
 CMD ["node", "server.js"]
