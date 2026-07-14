@@ -40,8 +40,8 @@
       }
     },
     "collectCoverageFrom": [
-      "<rootDir>/services/user-service/server.js",
-      "<rootDir>/shared/corsOptions.js"
+      "services/user-service/server.js",
+      "shared/corsOptions.js"
     ]
   }
 }
