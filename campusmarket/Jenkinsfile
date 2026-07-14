@@ -194,7 +194,9 @@ pipeline {
               env.GIT_BRANCH == 'main' ||
               env.GIT_BRANCH == 'origin/main'
           }
-          expression { params.DEPLOY_TO_VPS }
+          // Jenkins may not expose a newly declared parameter until the next
+          // run. Treat that first-run null as the secure production default.
+          expression { params.DEPLOY_TO_VPS == null || params.DEPLOY_TO_VPS }
         }
       }
       steps {
@@ -202,7 +204,8 @@ pipeline {
           dir('campusmarket') {
             sh '''
               test -d "$DEPLOY_ROOT"
-              install -d -m 2770 "$DEPLOY_ROOT/current" "$DEPLOY_ROOT/backups" "$DEPLOY_ROOT/evidence"
+              test -w "$DEPLOY_ROOT/current"
+              mkdir -p "$DEPLOY_ROOT/current" "$DEPLOY_ROOT/backups" "$DEPLOY_ROOT/evidence"
               rsync -a --delete \
                 --exclude '.git' \
                 --exclude 'node_modules' \

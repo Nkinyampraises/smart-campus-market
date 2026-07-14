@@ -31,6 +31,13 @@
       register: sync_result
       changed_when: sync_result.rc == 0
 
+    - name: Grant the Jenkins deployment group access to the release tree
+      ansible.builtin.file:
+        path: "{{ deployment_root }}/current"
+        group: "{{ deployment_group }}"
+        mode: g+rwX
+        recurse: true
+
     - name: Preserve protected production environment
       ansible.builtin.copy:
         src: "{{ deployment_source }}/backend/.env"
