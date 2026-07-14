@@ -127,8 +127,7 @@ register_campustrade_user "$CAMPUSTRADE_ADMIN_EMAIL" "$CAMPUSTRADE_ADMIN_PASSWOR
 register_campustrade_user "$CAMPUSTRADE_DEMO_EMAIL" "$CAMPUSTRADE_DEMO_PASSWORD" Demo Student
 k3s kubectl -n campustrade exec postgres-0 -- \
   psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" \
-  -v admin_email="$CAMPUSTRADE_ADMIN_EMAIL" \
-  -c "UPDATE users SET role='admin' WHERE email=:'admin_email';" >/dev/null
+  -c "UPDATE users SET role='admin' WHERE email='$CAMPUSTRADE_ADMIN_EMAIL';" >/dev/null
 
 for account in admin demo; do
   if [[ "$account" == admin ]]; then
