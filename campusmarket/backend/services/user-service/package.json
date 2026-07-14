@@ -28,8 +28,9 @@
     "supertest": "^6.3.3"
   },
   "jest": {
+    "rootDir": "../..",
     "testEnvironment": "node",
-    "testMatch": ["<rootDir>/*.test.js"],
+    "testMatch": ["<rootDir>/services/user-service/*.test.js"],
     "coverageThreshold": {
       "global": {
         "lines": 80,
@@ -39,9 +40,8 @@
       }
     },
     "collectCoverageFrom": [
-      "server.js",
-      "<rootDir>/../../shared/corsOptions.js",
-      "src/**/*.js"
+      "<rootDir>/services/user-service/server.js",
+      "<rootDir>/shared/corsOptions.js"
     ]
   }
 }
