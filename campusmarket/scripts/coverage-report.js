@@ -3,6 +3,7 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
+const backendRoot = path.join(root, 'backend');
 const reportRoot = path.join(root, 'coverage');
 const minimum = Number(process.env.COVERAGE_MIN || 80);
 const services = [
@@ -24,18 +25,31 @@ mkdirSync(path.join(reportRoot, 'services'), { recursive: true });
 for (const service of services) {
   const cwd = path.join(root, 'backend', 'services', service);
   const output = path.join(reportRoot, 'services', service);
+  const coverageArgs = [
+    '--runInBand',
+    '--coverage',
+    '--coverageReporters=json-summary',
+    '--coverageReporters=lcov',
+    `--coverageDirectory=${output}`,
+  ];
+  const includesSharedCoverage = service === 'user-service';
+  const command = includesSharedCoverage ? process.execPath : 'npm';
+  const args = includesSharedCoverage
+    ? [
+      path.join(cwd, 'node_modules', 'jest', 'bin', 'jest.js'),
+      '--config',
+      path.join(cwd, 'package.json'),
+      ...coverageArgs,
+    ]
+    : ['test', '--', ...coverageArgs];
   const result = spawnSync(
-    'npm',
-    [
-      'test',
-      '--',
-      '--runInBand',
-      '--coverage',
-      '--coverageReporters=json-summary',
-      '--coverageReporters=lcov',
-      `--coverageDirectory=${output}`,
-    ],
-    { cwd, stdio: 'inherit', shell: process.platform === 'win32' },
+    command,
+    args,
+    {
+      cwd: includesSharedCoverage ? backendRoot : cwd,
+      stdio: 'inherit',
+      shell: !includesSharedCoverage && process.platform === 'win32',
+    },
   );
 
   if (result.status !== 0) {
