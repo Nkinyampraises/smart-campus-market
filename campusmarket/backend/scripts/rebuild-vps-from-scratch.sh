@@ -76,15 +76,31 @@ if [[ -r "$deployment_root/shared/backend.env" && -f "$deployment_root/current/b
 fi
 systemctl stop k3s || true
 
-# K3s may leave projected tmpfs and local-path PVC bind mounts below kubelet
-# after the service stops. Remove only mounts whose targets are inside the
-# allowlisted kubelet tree, deepest first, so cleanup is both safe and resumable.
-mapfile -t kubelet_mounts < <(
+# The K3s unit uses KillMode=process so containerd shims can survive the server.
+# Terminate only shims from the K3s data tree connected to the K3s socket.
+mapfile -t k3s_shim_pids < <(
+  ps -eo pid=,args= | awk '
+    /\/var\/lib\/rancher\/k3s\/data\/.*\/bin\/containerd-shim-runc-v2/ &&
+    /-address \/run\/k3s\/containerd\/containerd.sock/ { print $1 }
+  '
+)
+if (( ${#k3s_shim_pids[@]} > 0 )); then
+  kill -TERM "${k3s_shim_pids[@]}" 2>/dev/null || true
+  sleep 2
+  for shim_pid in "${k3s_shim_pids[@]}"; do
+    kill -KILL "$shim_pid" 2>/dev/null || true
+  done
+fi
+
+# K3s may leave projected/PVC mounts below kubelet and container rootfs mounts
+# below its runtime tree. Detach only these allowlisted targets, deepest first,
+# so cleanup is safe and resumable.
+mapfile -t k3s_mounts < <(
   findmnt -rn -o TARGET 2>/dev/null | sort -r || true
 )
-for mount_target in "${kubelet_mounts[@]}"; do
+for mount_target in "${k3s_mounts[@]}"; do
   case "$mount_target" in
-    /var/lib/kubelet/*) umount --lazy -- "$mount_target" || true ;;
+    /var/lib/kubelet/*|/run/k3s/*) umount --lazy -- "$mount_target" || true ;;
     *) continue ;;
   esac
 done
