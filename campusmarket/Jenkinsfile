@@ -48,7 +48,7 @@ pipeline {
         dir('campusmarket') {
           script {
             def summary = sh(
-              script: 'sh backend/scripts/generate-system-information.sh ci-reports',
+              script: 'bash backend/scripts/generate-system-information.sh ci-reports',
               returnStdout: true
             ).trim()
             currentBuild.description = summary.take(240)
@@ -264,7 +264,7 @@ pipeline {
         if (fileExists('campusmarket/backend/scripts/generate-system-information.sh')) {
           dir('campusmarket') {
             def summary = sh(
-              script: 'sh backend/scripts/generate-system-information.sh ci-reports',
+              script: 'bash backend/scripts/generate-system-information.sh ci-reports',
               returnStdout: true
             ).trim()
             currentBuild.description = summary.take(240)
