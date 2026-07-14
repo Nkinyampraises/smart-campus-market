@@ -127,7 +127,7 @@ pipeline {
               docker run --rm \
                 --network host \
                 --user "$(id -u):$(id -g)" \
-                --tmpfs /tmp:rw,nosuid,nodev,size=512m,mode=1777 \
+                --tmpfs /tmp:rw,exec,nosuid,nodev,size=512m,mode=1777 \
                 -e SONAR_HOST_URL \
                 -e SONAR_TOKEN \
                 -e SONAR_USER_HOME=/tmp/.sonar \
