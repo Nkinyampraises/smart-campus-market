@@ -78,7 +78,7 @@ const combinedLcov = services.map((service) => {
   const lcovPath = path.join(reportRoot, 'services', service, 'lcov.info');
   return readFileSync(lcovPath, 'utf8').replace(
     /^SF:(.+)$/gm,
-    (_, source) => `SF:${path.posix.join('backend', 'services', service, source.replace(/\\/g, '/'))}`,
+    (_, source) => `SF:${path.posix.join('backend', 'services', service, source.replaceAll('\\', '/'))}`,
   );
 }).join('\n');
 writeFileSync(path.join(reportRoot, 'lcov.info'), combinedLcov);
