@@ -1,4 +1,7 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// Production is served behind the same ingress as the API gateway, so an
+// unset value must use same-origin requests. Local Compose supplies its own
+// explicit VITE_API_URL.
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export const getToken = () => localStorage.getItem('campustrade_token');
 

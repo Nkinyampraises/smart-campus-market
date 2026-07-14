@@ -66,7 +66,8 @@ This matrix documents variables actually used by code.
 - DB + Redis vars (required)
 
 ## Frontend
-- `VITE_API_URL` (required for non-default API gateway URL)
+- `VITE_API_URL` (optional): leave blank for the production same-origin `/api`
+  gateway; set it only when the browser must call a different API origin.
 
 ## Observability and code quality
 - `GRAFANA_USER`, `GRAFANA_PASS` (required): Grafana administrator credentials.

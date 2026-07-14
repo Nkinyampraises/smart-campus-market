@@ -171,6 +171,15 @@ pipeline {
       steps {
         dir('campusmarket') {
           sh '''
+            frontend_image="${CI_COMPOSE_PROJECT_NAME}-frontend:latest"
+            if docker run --rm "$frontend_image" sh -ec \
+              "grep -R -E -q '(your-frontend-domain\\.com|http://localhost:8080)' /usr/share/nginx/html"
+            then
+              echo 'Frontend image contains a non-production API placeholder.' >&2
+              exit 1
+            fi
+            echo 'Frontend runtime configuration gate passed.'
+
             for service in \
               frontend api-gateway auth-service user-service listing-service \
               chat-service admin-service ai-service search-service notification-service
