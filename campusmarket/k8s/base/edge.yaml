@@ -36,6 +36,25 @@ spec:
             pathType: Prefix
             backend: { service: { name: frontend, port: { number: 80 } } }
 ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: campustrade-grafana-assets
+  namespace: campustrade
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.tls.certresolver: campustrade
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: 4-168-192-5.sslip.io
+      http:
+        paths:
+          - path: /grafana-oss/13.0.2/public
+            pathType: Prefix
+            backend: { service: { name: frontend, port: { number: 80 } } }
+---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata: { name: api-gateway, namespace: campustrade }

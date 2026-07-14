@@ -330,6 +330,28 @@ curl -fsS http://127.0.0.1:9090/api/v1/targets | \
   jq -r '.data.activeTargets[] | [.labels.job,.health,.scrapeUrl] | @tsv'
 ```
 
+Grafana's authenticated pages, API, dashboards, and metrics remain private on
+the SSH tunnel. Only the versioned open-source frontend files under
+`/grafana-oss/13.0.2/public/` are served by the public application endpoint.
+Those files contain no credentials or monitoring data and use immutable browser
+caching. The `:80` on the HTTPS asset URL is intentional: the Azure perimeter
+currently permits public port 80, and Traefik terminates TLS for this one static
+route on that entry point with an automatically renewed certificate. Confirm
+both the fast asset route and the private-data boundary with:
+
+```bash
+curl -fsSI https://4-168-192-5.sslip.io:80/grafana-oss/13.0.2/public/build/img/fav32.png
+curl -o /dev/null -sS -w '%{http_code}\n' \
+  https://4-168-192-5.sslip.io:80/grafana-oss/13.0.2/public/api/health
+curl -fsS http://127.0.0.1:3009/login | \
+  grep -F 'https://4-168-192-5.sslip.io:80/grafana-oss/13.0.2/public/'
+```
+
+The expected statuses are `200` for the static image and `404` for the API-like
+path. The final command proves that Grafana is emitting the configured asset
+prefix. If the login shell opens but stays blank, check these three commands
+before restarting Grafana; this distinguishes asset delivery from server load.
+
 ## 12. Operate PostgreSQL and Redis safely
 
 Status:
@@ -425,6 +447,13 @@ curl http://127.0.0.1:3009/api/health
 curl http://127.0.0.1:9090/-/ready
 curl http://127.0.0.1:9000/api/system/status
 ```
+
+If Grafana alone shows "failed to load its application files", confirm that the
+login HTML references
+`https://4-168-192-5.sslip.io:80/grafana-oss/13.0.2/public/` and that
+the public static image check in section 11 returns immediately. Grafana does
+not run under a reverse-proxy subpath in this deployment; changing `root_url` or
+`serve_from_sub_path` is not the appropriate repair.
 
 ## 15. Security rules
 

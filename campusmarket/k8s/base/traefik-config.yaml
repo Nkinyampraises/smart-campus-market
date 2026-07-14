@@ -1,0 +1,17 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    additionalArguments:
+      - "--certificatesresolvers.campustrade.acme.email=149536813+KongyuJesse@users.noreply.github.com"
+      - "--certificatesresolvers.campustrade.acme.storage=/data/acme.json"
+      - "--certificatesresolvers.campustrade.acme.httpchallenge.entrypoint=web"
+    persistence:
+      enabled: true
+      name: data
+      accessMode: ReadWriteOnce
+      size: 128Mi
+      storageClass: local-path

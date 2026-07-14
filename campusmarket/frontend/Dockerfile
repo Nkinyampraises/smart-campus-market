@@ -14,10 +14,15 @@ ENV VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
 
 RUN npm run build
 
+FROM grafana/grafana:13.0.2 AS grafana-assets
+USER root
+RUN find /usr/share/grafana/public -type f -name '*.map' -delete
+
 FROM nginx:1.30.3-alpine3.23
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=grafana-assets /usr/share/grafana/public /usr/share/nginx/html/grafana-oss/13.0.2/public
 
 EXPOSE 80
 

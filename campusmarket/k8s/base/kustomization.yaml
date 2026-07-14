@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - observability-namespace.yaml
+  - traefik-config.yaml
   - configmap.yaml
   - data.yaml
   - applications.yaml
