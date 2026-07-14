@@ -3,6 +3,7 @@ const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -146,6 +147,14 @@ app.use('/api/search', proxy(SERVICES.search));
 
 // Notification service
 app.use('/api/notifications', proxy(SERVICES.notification));
+
+// Public, versioned API contract and a dependency-free documentation index.
+app.get('/api/docs/openapi.yaml', (_req, res) => {
+  res.type('application/yaml').sendFile(path.join(__dirname, 'openapi.yaml'));
+});
+app.get('/api/docs', (_req, res) => {
+  res.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CampusTrade API</title><style>body{margin:0;background:#0b1220;color:#edf4ff;font:16px/1.6 system-ui}main{max-width:760px;margin:auto;padding:64px 24px}h1{font-size:clamp(38px,8vw,64px);letter-spacing:-.05em;margin:.2em 0}p{color:#a9b9d1}a{display:inline-block;background:#65df98;color:#07130c;padding:12px 18px;border-radius:10px;font-weight:750;text-decoration:none}</style></head><body><main><p>CampusTrade · OpenAPI 3.1</p><h1>Production API contract</h1><p>Authentication, marketplace listings, search, offers, conversations, notifications, moderation, and AI-assisted marketplace endpoints.</p><a href="/api/docs/openapi.yaml">Open the OpenAPI YAML</a></main></body></html>`);
+});
 
 // Health check
 app.get('/health', (_req, res) => {

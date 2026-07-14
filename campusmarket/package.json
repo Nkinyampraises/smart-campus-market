@@ -15,6 +15,7 @@
     "audit:all": "npm run audit:frontend && npm run audit:backend",
     "test:frontend": "cd frontend && npm test",
     "test:backend": "node scripts/service-task.js test",
+    "coverage:backend": "node scripts/coverage-report.js",
     "test:all": "npm run test:frontend && npm run test:backend",
     "start:dev": "docker compose -p campusmarket-dev -f backend/docker-compose.yml up -d --build",
     "stop:dev": "docker compose -p campusmarket-dev -f backend/docker-compose.yml down"

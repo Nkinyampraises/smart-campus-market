@@ -339,6 +339,19 @@ describe('Notification Service — Event Handlers', () => {
     expect(true).toBe(true);
   });
 
+  it('contains notification persistence failures for users and administrators', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ id: 'admin1' }] })
+      .mockRejectedValueOnce(new Error('admin insert unavailable'));
+    await call({ type: 'report_submitted', reason: 'spam' });
+
+    pool.query
+      .mockRejectedValueOnce(new Error('user insert unavailable'))
+      .mockResolvedValueOnce({ rows: [] });
+    await call({ type: 'offer.new', sellerId: 'u2', amount: 1000, listingTitle: 'Stuff' });
+    expect(require('../../shared/logger').error).toHaveBeenCalledTimes(2);
+  });
+
   it('sendPushToUser with expired subscription (404) cleans up', async () => {
     const webpush = require('web-push');
     const pushErr = new Error('Gone');
@@ -359,6 +372,18 @@ describe('Notification Service — Event Handlers', () => {
 });
 
 describe('Notification Service — Lifecycle', () => {
+  it('contains cleanup failures for an expired push subscription', async () => {
+    const webpush = require('web-push');
+    webpush.sendNotification.mockRejectedValue(Object.assign(new Error('Gone'), { statusCode: 404 }));
+    pool.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ endpoint: 'https://expired.push', p256dh: 'k', auth: 'a' }] })
+      .mockRejectedValueOnce(new Error('cleanup unavailable'));
+    await capturedNotifHandler({ type: 'offer.new', sellerId: 'u2', amount: 1000, listingTitle: 'Stuff' });
+    await new Promise(setImmediate);
+    expect(pool.query).toHaveBeenCalledWith('DELETE FROM push_subscriptions WHERE endpoint=$1', ['https://expired.push']);
+  });
+
   it('_shutdown closes server and exits', async () => {
     const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
     pool.end = jest.fn().mockResolvedValue();

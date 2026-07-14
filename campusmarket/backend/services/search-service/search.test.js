@@ -1,125 +1,162 @@
 const request = require('supertest');
-const express = require('express');
 
-jest.mock('pg', () => {
-  const mockPool = { query: jest.fn() };
-  return { Pool: jest.fn(() => mockPool) };
-});
-jest.mock('../../shared/events', () => ({
-  initRedis: jest.fn().mockResolvedValue(true),
-  publishEvent: jest.fn().mockResolvedValue(true),
-  subscribeToEvents: jest.fn().mockResolvedValue(true),
-  EVENT_CHANNELS: { LISTING: 'listing.event' },
-  EVENT_TYPES: { LISTING_CREATED: 'listing.created', LISTING_UPDATED: 'listing.updated' },
-}));
+const mockRedis = { get: jest.fn() };
+
 jest.mock('prom-client', () => ({
   collectDefaultMetrics: jest.fn(),
-  register: { contentType: 'text/plain', metrics: jest.fn().mockResolvedValue('') },
+  register: { contentType: 'text/plain', metrics: jest.fn().mockResolvedValue('search_metrics') },
+}));
+jest.mock('../../shared/db', () => ({ query: jest.fn(), end: jest.fn().mockResolvedValue() }));
+jest.mock('../../shared/logger', () => ({ info: jest.fn(), error: jest.fn(), warn: jest.fn() }));
+jest.mock('../../shared/metrics', () => ({ metricsMiddleware: (_req, _res, next) => next() }));
+jest.mock('../../shared/events', () => ({
+  initRedis: jest.fn().mockResolvedValue(),
+  closeRedis: jest.fn().mockResolvedValue(),
+  getRedisClient: jest.fn(() => mockRedis),
+  subscribeToEvents: jest.fn().mockResolvedValue(),
+  EVENT_CHANNELS: { LISTING: 'listing.event' },
+  EVENT_TYPES: {
+    LISTING_CREATED: 'listing.created',
+    LISTING_UPDATED: 'listing.updated',
+    LISTING_SOLD: 'listing.sold',
+    LISTING_EXPIRED: 'listing.expired',
+  },
 }));
 
-const { Pool } = require('pg');
-const mockPool = new Pool();
+const pool = require('../../shared/db');
+const events = require('../../shared/events');
+const logger = require('../../shared/logger');
+const app = require('./server');
+let listingEventHandler;
 
-const app = express();
-app.use(express.json());
-
-app.get('/api/search', async (req, res) => {
-  try {
-    const { q, category, campus_zone } = req.query;
-    if (!q) return res.json({ results: [], total: 0 });
-    const result = await mockPool.query('SELECT * FROM listings WHERE status=$1', ['active']);
-    res.json({ results: result.rows, total: result.rows.length });
-  } catch { res.status(500).json({ error: 'Search failed' }); }
+beforeAll(async () => {
+  jest.spyOn(app, 'listen').mockImplementation((_port, callback) => {
+    callback();
+    return { close: jest.fn((done) => done?.()) };
+  });
+  await app._init();
+  listingEventHandler = events.subscribeToEvents.mock.calls[0][1];
+  app.listen.mockRestore();
 });
 
-app.get('/api/search/suggestions', async (req, res) => {
-  try {
-    const { q } = req.query;
-    if (!q || q.length < 2) return res.json([]);
-    const result = await mockPool.query('SELECT DISTINCT title FROM listings WHERE title ILIKE $1 LIMIT 8', [`%${q}%`]);
-    res.json(result.rows.map((r) => r.title));
-  } catch { res.status(500).json({ error: 'Suggestions failed' }); }
+afterEach(() => {
+  jest.clearAllMocks();
+  pool.query.mockReset();
+  pool.end.mockResolvedValue();
+  mockRedis.get.mockReset();
+  events.initRedis.mockResolvedValue();
 });
 
-app.get('/api/search/trending', async (req, res) => {
-  try {
-    const result = await mockPool.query('SELECT query, COUNT(*) as count FROM search_logs GROUP BY query ORDER BY count DESC LIMIT 10');
-    res.json(result.rows);
-  } catch { res.status(500).json({ error: 'Trending failed' }); }
-});
-
-// ── Tests ──────────────────────────────────────────────────────────────────
-
-describe('Search Service — Search', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('returns search results for a query', async () => {
-    mockPool.query.mockResolvedValueOnce({
-      rows: [
-        { id: 'l1', title: 'MacBook Air M2', category: 'Electronics', price_fcfa: 510000, status: 'active' },
-        { id: 'l2', title: 'MacBook Pro', category: 'Electronics', price_fcfa: 800000, status: 'active' },
-      ],
-    });
-    const res = await request(app).get('/api/search?q=macbook');
+describe('Search service — production routes', () => {
+  it('searches with filters, sorting, and pagination and records the query', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ id: 'l1' }], rowCount: 1 });
+    pool.query.mockRejectedValueOnce(new Error('search log unavailable'));
+    const res = await request(app).get('/api/search')
+      .query({ q: 'macbook', category: 'Electronics', campus_zone: 'North', min_price: 100, max_price: 900000, condition: 'used', sort: 'price_asc', page: 2, limit: 5 });
     expect(res.status).toBe(200);
-    expect(res.body.results).toHaveLength(2);
-    expect(res.body.total).toBe(2);
+    expect(res.body).toEqual({ results: [{ id: 'l1' }], total: 1, page: 2, limit: 5 });
+    expect(pool.query.mock.calls[0][0]).toContain('l.price_fcfa ASC');
+    expect(pool.query.mock.calls[0][1]).toEqual(['macbook', 'Electronics', 'North', '100', '900000', 'used', '5', 5]);
+    expect(pool.query.mock.calls[1][0]).toContain('INSERT INTO search_logs');
   });
 
-  it('returns empty results when no query provided', async () => {
-    const res = await request(app).get('/api/search');
-    expect(res.status).toBe(200);
-    expect(res.body.results).toHaveLength(0);
+  it('supports an unfiltered search and safely falls back for an unknown sort', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const res = await request(app).get('/api/search?sort=unsafe');
+    expect(res.body.total).toBe(0);
+    expect(pool.query.mock.calls[0][0]).toContain('rank DESC');
+    expect(pool.query).toHaveBeenCalledTimes(1);
   });
 
-  it('returns empty results when nothing matches', async () => {
-    mockPool.query.mockResolvedValueOnce({ rows: [] });
-    const res = await request(app).get('/api/search?q=xyznonexistent');
-    expect(res.status).toBe(200);
-    expect(res.body.results).toHaveLength(0);
-  });
-});
-
-describe('Search Service — Suggestions', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('returns title suggestions for a query', async () => {
-    mockPool.query.mockResolvedValueOnce({
-      rows: [{ title: 'MacBook Air M2' }, { title: 'MacBook Pro M3' }],
-    });
+  it('returns sanitized suggestions and rejects too-short input', async () => {
+    expect((await request(app).get('/api/search/suggestions?q=x')).body).toEqual([]);
+    pool.query.mockResolvedValueOnce({ rows: [{ title: 'MacBook Air' }, { title: 'MacBook Pro' }] });
     const res = await request(app).get('/api/search/suggestions?q=mac');
-    expect(res.status).toBe(200);
-    expect(res.body).toContain('MacBook Air M2');
-    expect(res.body).toHaveLength(2);
+    expect(res.body).toEqual(['MacBook Air', 'MacBook Pro']);
+    expect(pool.query.mock.calls[0][1]).toEqual(['%mac%']);
   });
 
-  it('returns empty array for queries shorter than 2 chars', async () => {
-    const res = await request(app).get('/api/search/suggestions?q=m');
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(0);
+  it('returns cached trending listings', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ query: 'books', count: 4 }] });
+    mockRedis.get.mockResolvedValueOnce(JSON.stringify([{ id: 'cached' }]));
+    const res = await request(app).get('/api/search/trending');
+    expect(res.body).toEqual({ trending_terms: [{ query: 'books', count: 4 }], trending_listings: [{ id: 'cached' }] });
   });
 
-  it('returns empty array when no query provided', async () => {
-    const res = await request(app).get('/api/search/suggestions');
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(0);
+  it('falls back to database trending listings when the cache is empty', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ query: 'laptop', count: 2 }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'popular' }] });
+    mockRedis.get.mockResolvedValueOnce(null);
+    const res = await request(app).get('/api/search/trending');
+    expect(res.body.trending_listings).toEqual([{ id: 'popular' }]);
+  });
+
+  it('contains cache failures and exposes health and metrics', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+    mockRedis.get.mockRejectedValueOnce(new Error('cache down'));
+    const trending = await request(app).get('/api/search/trending');
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    const health = await request(app).get('/health');
+    const metrics = await request(app).get('/metrics');
+    expect(trending.body.trending_listings).toEqual([]);
+    expect(health.body.status).toBe('ok');
+    expect(metrics.text).toBe('search_metrics');
+  });
+
+  it('returns a safe 500 response and logs unexpected failures', async () => {
+    pool.query.mockRejectedValueOnce(new Error('database credentials leaked'));
+    const res = await request(app).get('/api/search?q=test');
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'Internal server error' });
+    expect(logger.error).toHaveBeenCalled();
   });
 });
 
-describe('Search Service — Trending', () => {
-  beforeEach(() => jest.clearAllMocks());
+describe('Search service — event lifecycle', () => {
+  it('indexes created and updated listings', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ title: 'Bike', description: 'Fast', category: 'Transport', campus_zone: 'North', tags: ['green', 'cheap'] }] })
+      .mockResolvedValueOnce({ rows: [] });
+    await listingEventHandler({ type: 'listing.created', listingId: 'l1' });
+    expect(pool.query.mock.calls[1][0]).toContain('INSERT INTO search_index');
+    expect(pool.query.mock.calls[1][1][1]).toContain('green cheap');
 
-  it('returns trending search terms', async () => {
-    mockPool.query.mockResolvedValueOnce({
-      rows: [
-        { query: 'macbook', count: '45' },
-        { query: 'textbooks', count: '32' },
-        { query: 'headphones', count: '28' },
-      ],
-    });
-    const res = await request(app).get('/api/search/trending');
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(3);
-    expect(res.body[0].query).toBe('macbook');
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    await listingEventHandler({ type: 'listing.updated', listingId: 'missing' });
+  });
+
+  it('removes sold, expired, and moderated listings from the index', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockRejectedValueOnce(new Error('already removed'));
+    await listingEventHandler({ type: 'listing.sold', listingId: 'l1' });
+    await listingEventHandler({ type: 'listing.expired', listingId: 'l2' });
+    await listingEventHandler({ type: 'listing.removed', listingId: 'l3' });
+    expect(pool.query).toHaveBeenCalledTimes(3);
+    expect(pool.query.mock.calls[0][0]).toContain('DELETE FROM search_index');
+  });
+
+  it('contains indexing failures', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ title: 'Book', description: '', category: 'Books', campus_zone: 'South', tags: 'textbook' }] })
+      .mockRejectedValueOnce(new Error('index failed'));
+    await listingEventHandler({ type: 'listing.created', listingId: 'l4' });
+    expect(logger.error).toHaveBeenCalledWith('Search index update failed', { error: 'index failed' });
+  });
+
+  it('fails initialization closed and shuts down dependencies', async () => {
+    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
+    events.initRedis.mockRejectedValueOnce(new Error('redis unavailable'));
+    await app._init();
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    await app._shutdown('SIGTERM');
+    expect(events.closeRedis).toHaveBeenCalled();
+    expect(pool.end).toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    exitSpy.mockRestore();
   });
 });

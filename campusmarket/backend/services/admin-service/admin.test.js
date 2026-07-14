@@ -229,6 +229,21 @@ describe('Admin Service — Reports', () => {
 });
 
 describe('Admin Service — Fraud Flags', () => {
+  it('GET /api/admin/listing-flags/:id returns active public flags', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ id: 'f1', type: 'fraud.low_price', rule: 'price_too_low' }] });
+    const res = await request(app).get(`/api/admin/listing-flags/${UUID}`);
+    expect(res.status).toBe(200);
+    expect(res.body.flagged).toBe(true);
+    expect(res.body.flags).toHaveLength(1);
+  });
+
+  it('GET /api/admin/listing-flags/:id reports a clean listing', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    const res = await request(app).get(`/api/admin/listing-flags/${UUID}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ flagged: false, flags: [] });
+  });
+
   it('GET /api/admin/fraud-flags returns unresolved flags', async () => {
     pool.query.mockResolvedValueOnce({ rows: [{ id: 'f1', type: 'price', resolved: false }] });
     const res = await request(app).get('/api/admin/fraud-flags')
@@ -326,6 +341,13 @@ describe('Admin Service — Lifecycle (init/shutdown/events)', () => {
     expect(initRedis).toHaveBeenCalled();
     expect(subscribeToEvents).toHaveBeenCalled();
     app.listen.mockRestore();
+  });
+
+  it('_init fails closed when Redis cannot initialize', async () => {
+    const { initRedis } = require('../../shared/events');
+    initRedis.mockRejectedValueOnce(new Error('Redis unavailable'));
+    await app._init();
+    expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
   it('audit event handler inserts fraud flag for LOW_PRICE_FLAG', async () => {

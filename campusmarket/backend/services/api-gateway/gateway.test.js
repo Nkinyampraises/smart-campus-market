@@ -95,6 +95,16 @@ describe('System endpoints', () => {
     expect(res.text).toMatch(/Contact:/);
     expect(res.text).toMatch(/Policy:/);
   });
+
+  test('GET /api/docs publishes the human index and OpenAPI contract', async () => {
+    const index = await request(app).get('/api/docs');
+    const contract = await request(app).get('/api/docs/openapi.yaml');
+    expect(index.status).toBe(200);
+    expect(index.text).toContain('Production API contract');
+    expect(contract.status).toBe(200);
+    expect(contract.text).toContain('openapi: 3.1.0');
+    expect(contract.text).toContain('/api/listings:');
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════

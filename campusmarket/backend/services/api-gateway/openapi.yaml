@@ -1,0 +1,177 @@
+openapi: 3.1.0
+info:
+  title: CampusTrade API
+  version: 1.0.0
+  description: Production API contract for the CampusTrade campus marketplace.
+servers:
+  - url: /
+    description: Current deployment
+tags:
+  - { name: Authentication }
+  - { name: Listings }
+  - { name: Search }
+  - { name: Commerce }
+  - { name: Messaging }
+  - { name: Notifications }
+  - { name: Operations }
+paths:
+  /health:
+    get:
+      tags: [Operations]
+      summary: Gateway readiness and service registry
+      responses:
+        '200': { description: Healthy, content: { application/json: { schema: { $ref: '#/components/schemas/Health' } } } }
+  /api/auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register a campus marketplace account
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RegisterRequest' } } }
+      responses:
+        '201': { description: Account created }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { description: Account already exists }
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Authenticate with email and password
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } }
+      responses:
+        '200': { description: Authenticated, content: { application/json: { schema: { $ref: '#/components/schemas/AuthTokens' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/listings:
+    get:
+      tags: [Listings]
+      summary: Browse active listings
+      parameters:
+        - { in: query, name: category, schema: { type: string } }
+        - { in: query, name: campus_zone, schema: { type: string } }
+        - { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
+      responses:
+        '200': { description: Listings, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Listing' } } } } }
+    post:
+      tags: [Listings]
+      summary: Publish a listing
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ListingInput' } } }
+      responses:
+        '201': { description: Listing created, content: { application/json: { schema: { $ref: '#/components/schemas/Listing' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/listings/{listingId}:
+    get:
+      tags: [Listings]
+      summary: Get listing details
+      parameters: [{ $ref: '#/components/parameters/ListingId' }]
+      responses:
+        '200': { description: Listing, content: { application/json: { schema: { $ref: '#/components/schemas/Listing' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Listings]
+      summary: Update a seller-owned listing
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ListingId' }]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ListingInput' } } } }
+      responses:
+        '200': { description: Updated }
+        '403': { description: Not the owner }
+  /api/search:
+    get:
+      tags: [Search]
+      summary: Full-text and faceted marketplace search
+      parameters:
+        - { in: query, name: q, schema: { type: string, maxLength: 100 } }
+        - { in: query, name: category, schema: { type: string } }
+        - { in: query, name: min_price, schema: { type: integer, minimum: 0 } }
+        - { in: query, name: max_price, schema: { type: integer, minimum: 0 } }
+        - { in: query, name: sort, schema: { type: string, enum: [relevance, newest, price_asc, price_desc, views] } }
+      responses:
+        '200': { description: Search results }
+  /api/offers:
+    post:
+      tags: [Commerce]
+      summary: Submit an offer on a listing
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [listingId, amount], properties: { listingId: { type: string, format: uuid }, amount: { type: integer, minimum: 1 } } } } }
+      responses:
+        '201': { description: Offer created }
+  /api/conversations:
+    get:
+      tags: [Messaging]
+      summary: List the current user's conversations
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Conversations }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /api/notifications:
+    get:
+      tags: [Notifications]
+      summary: List the current user's notifications
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Notifications }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /api/ai/price-suggestion:
+    post:
+      tags: [Commerce]
+      summary: Suggest a listing price using marketplace history
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [category, condition], properties: { category: { type: string }, condition: { type: string } } } } }
+      responses: { '200': { description: Price suggestion and confidence band } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    ListingId: { in: path, name: listingId, required: true, schema: { type: string, format: uuid } }
+  responses:
+    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Unauthorized: { description: Authentication required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NotFound: { description: Resource not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  schemas:
+    Error: { type: object, required: [error], properties: { error: { type: string } } }
+    Health:
+      type: object
+      required: [status, services, timestamp]
+      properties:
+        status: { type: string, const: ok }
+        services: { type: array, items: { type: string } }
+        timestamp: { type: string, format: date-time }
+    RegisterRequest:
+      type: object
+      required: [email, password, first_name, last_name]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        first_name: { type: string }
+        last_name: { type: string }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties: { email: { type: string, format: email }, password: { type: string } }
+    AuthTokens:
+      type: object
+      properties: { accessToken: { type: string }, refreshToken: { type: string }, user: { type: object } }
+    ListingInput:
+      type: object
+      required: [title, price_fcfa, category, condition, campus_zone]
+      properties:
+        title: { type: string, minLength: 3, maxLength: 120 }
+        description: { type: string, maxLength: 4000 }
+        price_fcfa: { type: integer, minimum: 0 }
+        category: { type: string }
+        condition: { type: string }
+        campus_zone: { type: string }
+        images: { type: array, maxItems: 8, items: { type: string, format: uri } }
+    Listing:
+      allOf:
+        - { $ref: '#/components/schemas/ListingInput' }
+        - type: object
+          required: [id, status]
+          properties:
+            id: { type: string, format: uuid }
+            seller_id: { type: string, format: uuid }
+            status: { type: string, enum: [active, sold, removed, expired] }

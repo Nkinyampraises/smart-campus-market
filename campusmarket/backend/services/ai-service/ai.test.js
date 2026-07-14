@@ -1,164 +1,218 @@
 const request = require('supertest');
-const express = require('express');
 const jwt = require('jsonwebtoken');
 
-jest.mock('pg', () => {
-  const mockPool = { query: jest.fn() };
-  return { Pool: jest.fn(() => mockPool) };
-});
-jest.mock('@anthropic-ai/sdk', () => {
-  return jest.fn().mockImplementation(() => ({
-    messages: {
-      create: jest.fn().mockResolvedValue({
-        content: [{ text: '{"suggested_price":450000,"min_price":400000,"max_price":510000,"reasoning":"Based on recent campus sales"}' }],
-      }),
-    },
-  }));
-});
-jest.mock('../../shared/events', () => ({
-  initRedis: jest.fn().mockResolvedValue(true),
-  publishEvent: jest.fn().mockResolvedValue(true),
-  subscribeToEvents: jest.fn().mockResolvedValue(true),
-  EVENT_CHANNELS: { LISTING: 'listing.event' },
-  EVENT_TYPES: { LISTING_CREATED: 'listing.created', LOW_PRICE_FLAG: 'fraud.low_price_flag', SPAM_RATE_FLAG: 'fraud.spam_rate_flag' },
-}));
-jest.mock('prom-client', () => ({
-  collectDefaultMetrics: jest.fn(),
-  register: { contentType: 'text/plain', metrics: jest.fn().mockResolvedValue('') },
-}));
-
-const { Pool } = require('pg');
-const Anthropic = require('@anthropic-ai/sdk');
-const { publishEvent } = require('../../shared/events');
-const mockPool = new Pool();
-const mockAnthropic = new Anthropic();
-
-process.env.JWT_SECRET = 'test_secret';
-process.env.ANTHROPIC_API_KEY = 'test_key';
-
-const makeToken = (userId = 'u1') =>
-  jwt.sign({ userId }, 'test_secret', { expiresIn: '1h' });
-
-const app = express();
-app.use(express.json());
-
-const authenticate = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
-  try { req.user = jwt.verify(token, process.env.JWT_SECRET); next(); }
-  catch { res.status(401).json({ error: 'Invalid token' }); }
+const SECRET = 'test_secret';
+const token = () => jwt.sign({ userId: 'u1' }, SECRET, { expiresIn: '1h' });
+const mockRedis = {
+  get: jest.fn(),
+  set: jest.fn().mockResolvedValue('OK'),
+  ping: jest.fn().mockResolvedValue('PONG'),
+  isOpen: true,
 };
 
-app.post('/api/ai/price-suggestion', authenticate, async (req, res) => {
-  try {
-    const { title, category, condition, description } = req.body;
-    if (!title || !category) return res.status(400).json({ error: 'title and category required' });
-    const recentSales = await mockPool.query('SELECT title, price_fcfa, condition FROM listings WHERE category=$1 LIMIT 10', [category]);
-    const message = await mockAnthropic.messages.create({ model: 'claude-sonnet-4-6', max_tokens: 300, messages: [{ role: 'user', content: 'price suggestion' }] });
-    const suggestion = JSON.parse(message.content[0].text);
-    res.json(suggestion);
-  } catch (err) {
-    res.status(500).json({ error: 'Could not generate price suggestion' });
-  }
+jest.mock('prom-client', () => ({
+  collectDefaultMetrics: jest.fn(),
+  register: { contentType: 'text/plain', metrics: jest.fn().mockResolvedValue('metrics_data') },
+}));
+jest.mock('../../shared/db', () => ({ query: jest.fn(), end: jest.fn().mockResolvedValue() }));
+jest.mock('../../shared/logger', () => ({ info: jest.fn(), error: jest.fn(), warn: jest.fn() }));
+jest.mock('../../shared/metrics', () => ({ metricsMiddleware: (_req, _res, next) => next() }));
+jest.mock('../../shared/errorHandler', () => ({
+  asyncHandler: (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next),
+  AppError: class AppError extends Error {
+    constructor(message, status) { super(message); this.status = status; }
+  },
+}));
+jest.mock('../../shared/events', () => ({
+  initRedis: jest.fn().mockResolvedValue(),
+  closeRedis: jest.fn().mockResolvedValue(),
+  getRedisClient: jest.fn(() => mockRedis),
+  publishEvent: jest.fn().mockResolvedValue(),
+  subscribeToEvents: jest.fn().mockResolvedValue(),
+  EVENT_CHANNELS: { LISTING: 'listing.event', AUDIT: 'audit.channel' },
+  EVENT_TYPES: {
+    LISTING_CREATED: 'listing.created',
+    LOW_PRICE_FLAG: 'fraud.low_price',
+    HIGH_PRICE_FLAG: 'fraud.high_price',
+    SPAM_RATE_FLAG: 'fraud.spam_rate',
+  },
+}));
+
+const pool = require('../../shared/db');
+const events = require('../../shared/events');
+const app = require('./server');
+let listingEventHandler;
+
+beforeAll(async () => {
+  process.env.JWT_SECRET = SECRET;
+  jest.spyOn(app, 'listen').mockReturnValue({ close: jest.fn((callback) => callback?.()) });
+  await app._init();
+  listingEventHandler = events.subscribeToEvents.mock.calls.find(([channel]) => channel === 'listing.event')[1];
+  app.listen.mockRestore();
 });
 
-app.post('/api/ai/fraud-check', async (req, res) => {
-  try {
-    const { listingId, category, price_fcfa, sellerId } = req.body;
-    const avg = await mockPool.query('SELECT AVG(price_fcfa) as avg FROM listings WHERE category=$1', [category]);
-    const recentCount = await mockPool.query('SELECT COUNT(*) FROM listings WHERE seller_id=$1', [sellerId]);
-    const marketAvg = parseFloat(avg.rows[0].avg) || 0;
-    const flags = [];
-    if (marketAvg > 0 && price_fcfa < marketAvg * 0.1) {
-      flags.push({ type: 'fraud.low_price_flag', rule: 'Price suspiciously low' });
-      await publishEvent('listing.event', { type: 'fraud.low_price_flag', listingId, sellerId });
-    }
-    if (parseInt(recentCount.rows[0].count) > 10) {
-      flags.push({ type: 'fraud.spam_rate_flag', rule: 'Too many listings in 24h' });
-    }
-    res.json({ flagged: flags.length > 0, flags });
-  } catch { res.status(500).json({ error: 'Fraud check failed' }); }
+afterEach(() => {
+  jest.clearAllMocks();
+  mockRedis.set.mockResolvedValue('OK');
+  mockRedis.ping.mockResolvedValue('PONG');
+  events.initRedis.mockResolvedValue();
 });
 
-// ── Tests ──────────────────────────────────────────────────────────────────
-
-describe('AI Service — Price Suggestion', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('returns AI price suggestion for a listing', async () => {
-    mockPool.query.mockResolvedValueOnce({ rows: [{ title: 'MacBook Air', price_fcfa: 510000, condition: 'Good' }] });
-
-    const res = await request(app)
-      .post('/api/ai/price-suggestion')
-      .set('Authorization', `Bearer ${makeToken()}`)
-      .send({ title: 'MacBook Air M2', category: 'Electronics', condition: 'Good Condition', description: 'Barely used' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.suggested_price).toBe(450000);
-    expect(res.body.min_price).toBe(400000);
-    expect(res.body.max_price).toBe(510000);
-    expect(res.body.reasoning).toBeDefined();
+describe('AI service — price suggestion', () => {
+  it('rejects unauthenticated and malformed requests', async () => {
+    expect((await request(app).post('/api/ai/price-suggestion').send({ category: 'Electronics', condition: 'new' })).status).toBe(401);
+    expect((await request(app).post('/api/ai/price-suggestion').set('Authorization', `Bearer ${token()}`).send({ category: 'Electronics' })).status).toBe(400);
+    expect((await request(app).post('/api/ai/price-suggestion').set('Authorization', 'Bearer invalid').send({ category: 'Electronics', condition: 'new' })).status).toBe(401);
   });
 
-  it('returns 400 when title is missing', async () => {
-    const res = await request(app)
-      .post('/api/ai/price-suggestion')
-      .set('Authorization', `Bearer ${makeToken()}`)
-      .send({ category: 'Electronics' });
+  it('returns a high-confidence suggestion from transaction history', async () => {
+    mockRedis.get.mockResolvedValueOnce(null);
+    pool.query.mockResolvedValueOnce({ rows: [{ avg: 100000, cnt: 5 }] });
+    const res = await request(app).post('/api/ai/price-suggestion')
+      .set('Authorization', `Bearer ${token()}`)
+      .send({ category: 'Electronics', condition: 'Like New' });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ suggestion: 90000, range: { min: 81000, max: 99000 }, confidence: 'high', count: 5 });
+    expect(mockRedis.set).toHaveBeenCalled();
+  });
+
+  it('uses cached averages and defaults unknown condition factors', async () => {
+    mockRedis.get.mockResolvedValueOnce(JSON.stringify({ avg: 10000, count: 4 }));
+    const res = await request(app).post('/api/ai/price-suggestion')
+      .set('Authorization', `Bearer ${token()}`)
+      .send({ category: 'Services', condition: 'unknown' });
+    expect(res.body.suggestion).toBe(7000);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('reports low confidence when comparable data is insufficient', async () => {
+    mockRedis.get.mockResolvedValueOnce(null);
+    pool.query.mockResolvedValueOnce({ rows: [{ avg: null, cnt: 1 }] });
+    const res = await request(app).post('/api/ai/price-suggestion')
+      .set('Authorization', `Bearer ${token()}`)
+      .send({ category: 'Other', condition: 'used' });
+    expect(res.body.confidence).toBe('low');
+    expect(res.body.suggestion).toBeNull();
+  });
+});
+
+describe('AI service — fraud rules', () => {
+  const payload = { listingId: 'l1', category: 'Electronics', sellerId: 'u1' };
+
+  it('validates the complete listing input', async () => {
+    const res = await request(app).post('/api/ai/fraud-check').send({ listingId: 'l1' });
     expect(res.status).toBe(400);
   });
 
-  it('returns 401 without authentication', async () => {
-    const res = await request(app)
-      .post('/api/ai/price-suggestion')
-      .send({ title: 'Test', category: 'Electronics' });
-    expect(res.status).toBe(401);
+  it('publishes suspicious low-price and spam flags', async () => {
+    mockRedis.get.mockResolvedValueOnce(JSON.stringify({ avg: 100000, count: 4 }));
+    pool.query.mockResolvedValueOnce({ rows: [{ cnt: 11 }] });
+    const res = await request(app).post('/api/ai/fraud-check').send({ ...payload, price_fcfa: 1000 });
+    expect(res.status).toBe(200);
+    expect(res.body.flags).toHaveLength(2);
+    expect(events.publishEvent).toHaveBeenCalledTimes(2);
+  });
+
+  it('publishes a suspicious high-price flag', async () => {
+    mockRedis.get.mockResolvedValueOnce(JSON.stringify({ avg: 10000, count: 4 }));
+    pool.query.mockResolvedValueOnce({ rows: [{ cnt: 1 }] });
+    const res = await request(app).post('/api/ai/fraud-check').send({ ...payload, price_fcfa: 100000 });
+    expect(res.body.flags[0].type).toBe('fraud.high_price');
+  });
+
+  it('uses the category minimum and accepts a normal price', async () => {
+    mockRedis.get.mockResolvedValueOnce(JSON.stringify({ avg: 0, count: 0 }));
+    pool.query.mockResolvedValueOnce({ rows: [{ cnt: 1 }] });
+    const res = await request(app).post('/api/ai/fraud-check').send({ ...payload, category: 'Unknown', price_fcfa: 300 });
+    expect(res.body).toEqual({ flagged: false, flags: [] });
   });
 });
 
-describe('AI Service — Fraud Detection', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('flags a listing with suspiciously low price', async () => {
-    mockPool.query
-      .mockResolvedValueOnce({ rows: [{ avg: '500000' }] })
-      .mockResolvedValueOnce({ rows: [{ count: '3' }] });
-
-    const res = await request(app)
-      .post('/api/ai/fraud-check')
-      .send({ listingId: 'l1', category: 'Electronics', price_fcfa: 100, sellerId: 'u1' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.flagged).toBe(true);
-    expect(res.body.flags[0].type).toBe('fraud.low_price_flag');
-    expect(publishEvent).toHaveBeenCalled();
+describe('AI service — discovery', () => {
+  it('returns a cached trending feed', async () => {
+    mockRedis.get.mockResolvedValueOnce(JSON.stringify([{ id: 'cached' }]));
+    const res = await request(app).get('/api/trending');
+    expect(res.body).toEqual([{ id: 'cached' }]);
   });
 
-  it('does not flag a listing with normal price', async () => {
-    mockPool.query
-      .mockResolvedValueOnce({ rows: [{ avg: '500000' }] })
-      .mockResolvedValueOnce({ rows: [{ count: '2' }] });
-
-    const res = await request(app)
-      .post('/api/ai/fraud-check')
-      .send({ listingId: 'l2', category: 'Electronics', price_fcfa: 480000, sellerId: 'u1' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.flagged).toBe(false);
-    expect(res.body.flags).toHaveLength(0);
+  it('returns an empty trending feed', async () => {
+    mockRedis.get.mockResolvedValueOnce(null);
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    const res = await request(app).get('/api/trending');
+    expect(res.body).toEqual([]);
   });
 
-  it('flags a seller posting too many listings', async () => {
-    mockPool.query
-      .mockResolvedValueOnce({ rows: [{ avg: '100000' }] })
-      .mockResolvedValueOnce({ rows: [{ count: '15' }] });
+  it('scores, sorts, enriches, and caches trending listings', async () => {
+    mockRedis.get.mockResolvedValueOnce(null);
+    pool.query
+      .mockResolvedValueOnce({ rows: [
+        { id: 'l1', views: 10, seller_id: 'u1' },
+        { id: 'l2', views: 2, seller_id: 'missing' },
+      ] })
+      .mockResolvedValueOnce({ rows: [{ listing_id: 'l2', cnt: '20' }] })
+      .mockResolvedValueOnce({ rows: [{ first_name: 'Ada', last_name: 'Lovelace' }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const res = await request(app).get('/api/trending');
+    expect(res.body[0].id).toBe('l2');
+    expect(res.body[0].seller_name).toBe('Ada Lovelace');
+    expect(res.body[1].seller_name).toBe('Unknown');
+    expect(mockRedis.set).toHaveBeenCalledWith('trending:feed', expect.any(String), { EX: 900 });
+  });
 
-    const res = await request(app)
-      .post('/api/ai/fraud-check')
-      .send({ listingId: 'l3', category: 'Electronics', price_fcfa: 95000, sellerId: 'u-spam' });
-
+  it('returns similar listings inside the price band', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ category: 'Books', condition: 'used', price_fcfa: 10000 }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'similar' }] });
+    const res = await request(app).get('/api/ai/similar/l1');
     expect(res.status).toBe(200);
-    expect(res.body.flagged).toBe(true);
-    expect(res.body.flags.some((f) => f.type === 'fraud.spam_rate_flag')).toBe(true);
+    expect(res.body).toEqual([{ id: 'similar' }]);
+  });
+
+  it('returns 404 when the source listing does not exist', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    expect((await request(app).get('/api/ai/similar/missing')).status).toBe(404);
+  });
+});
+
+describe('AI service — operations and events', () => {
+  let exitSpy;
+  beforeEach(() => { exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {}); });
+  afterEach(() => exitSpy.mockRestore());
+
+  it('exposes health and metrics', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] });
+    const health = await request(app).get('/health');
+    const metrics = await request(app).get('/metrics');
+    expect(health.body.status).toBe('ok');
+    expect(mockRedis.ping).toHaveBeenCalled();
+    expect(metrics.status).toBe(200);
+  });
+
+  it('fails initialization closed', async () => {
+    events.initRedis.mockRejectedValueOnce(new Error('Redis unavailable'));
+    await app._init();
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('automatically evaluates listing-created events', async () => {
+    expect(listingEventHandler).toBeDefined();
+    mockRedis.get.mockResolvedValueOnce(JSON.stringify({ avg: 10000, count: 5 }));
+    pool.query.mockResolvedValueOnce({ rows: [{ cnt: 12 }] });
+    await listingEventHandler({ type: 'listing.created', listingId: 'l1', sellerId: 'u1', category: 'Electronics', price_fcfa: 10 });
+    expect(events.publishEvent).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores unrelated events and contains handler failures', async () => {
+    await listingEventHandler({ type: 'other.event' });
+    mockRedis.get.mockRejectedValueOnce(new Error('cache failed'));
+    await listingEventHandler({ type: 'listing.created', category: 'Books', price_fcfa: 1 });
+    expect(require('../../shared/logger').error).toHaveBeenCalled();
+  });
+
+  it('shuts down dependencies cleanly', async () => {
+    await app._shutdown('SIGTERM');
+    expect(events.closeRedis).toHaveBeenCalled();
+    expect(pool.end).toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(0);
   });
 });
