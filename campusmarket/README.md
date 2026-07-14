@@ -10,19 +10,24 @@ A full-stack microservices application for campus-based buying and selling.
 - **Cache/Message Broker**: Redis for caching and pub/sub
 - **Real-time**: Socket.IO for chat functionality
 - **Communication**: Redis Pub/Sub events for async service coordination
-- **Containerization**: Docker
-- **Orchestration**: Docker Compose on the Azure test VM
+- **Containerization**: Docker images built and scanned on the VPS
+- **Orchestration**: K3s on the Azure VPS, with immutable release tags
 - **CI/CD**: Jenkins with dependency, container, and SonarQube quality gates
 - **Monitoring**: Prometheus + Grafana, with Jenkins system-status reports
 - **Code quality**: SonarQube Community Build
 
-## Getting Started
+## Production access
 
-1. Clone the repository
-2. Copy `.env.example` to `.env` and update values if needed
-3. Run `npm install:all` to install dependencies
-4. Start local development environment: `npm run start:dev`
-5. Access the application at http://localhost:3000
+- CampusTrade: `http://4.168.192.5`
+- API health: `http://4.168.192.5/health`
+- API documentation: `http://4.168.192.5/api/docs`
+
+The deployed application, CI tests, SonarQube analysis, container builds,
+monitoring, and databases all run on the VPS. Use the workstation only for Git,
+SSH, and a browser. Follow the
+[production operations runbook](docs/operations/PLATFORM_OPERATIONS_RUNBOOK.md)
+for account retrieval, private dashboard tunnels, health checks, deployments,
+backups, and exact stop/start/restart commands.
 
 ## Development
 
@@ -32,14 +37,17 @@ A full-stack microservices application for campus-based buying and selling.
 
 ## Deployment
 
-The deployed Azure environment is defined by
-`backend/docker-compose.prod.yml`. Jenkins uses the root `Jenkinsfile` to pull
-the repository from GitHub, run the release gates, and optionally update the
-Azure test VM from `main`.
+Jenkins uses the root `Jenkinsfile` to pull `main`, run 310 backend tests and
+coverage on the VPS, enforce the SonarQube gate, audit dependencies, build and
+Trivy-scan ten images, import them into K3s, perform a rolling deployment, run
+public smoke tests, and archive evidence. Failed tests, sub-80% aggregate
+coverage, a failed SonarQube gate, or critical image vulnerabilities block the
+deployment.
 
-See `backend/PRODUCTION.md` for deployment, `backend/OPERATIONS.md` for
-Jenkins/Grafana/Prometheus/SonarQube access, and `backend/SONARQUBE.md` for the
-one-time quality-gate setup.
+See the [deployment evidence](docs/operations/VPS_DEPLOYMENT_EVIDENCE.md),
+[test report](docs/testing/TEST_REPORT.md), and
+[screenshot catalog](docs/evidence/screenshots/README.md) for the verified
+release record.
 
 ## Project Structure
 

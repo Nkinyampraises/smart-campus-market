@@ -90,6 +90,14 @@ host system services / protected Compose project
 
 | Evidence | Result |
 |---|---|
+| Jenkins release | Build 24, `SUCCESS` |
+| Deployed source | Commit `64bb3654ed23172b8dfdddac6db69a68ffdad6a1` |
+| Immutable image tag | `64bb3654ed23` on all 10 application deployments |
+| Automated tests | 310/310 passed on the VPS |
+| Aggregate coverage | 92.59% statements, 80.28% branches, 80.60% functions, 95.56% lines |
+| SonarQube quality gate | `OK`; zero open vulnerabilities at analysis time |
+| Dependency audits | Zero reported vulnerabilities in all nine backend production dependency trees |
+| Container scans | All 10 production images passed the Trivy `CRITICAL` gate |
 | K3s node | Ready, control-plane |
 | Application deployments | 10/10 available |
 | Frontend replicas | 2/2 ready |
@@ -101,6 +109,11 @@ host system services / protected Compose project
 | Public API | `status: ok` |
 
 Raw evidence is stored on the VPS at `/srv/campustrade/evidence/production-20260714`, including Kubernetes status, API health, Prometheus targets, Grafana health, SonarQube status, and the Jenkins-style system-information HTML report.
+
+Jenkins build 24 also archived its machine evidence under
+`/var/lib/jenkins/workspace/campustrade-ci/evidence/build-24`. The repository's
+37-image Android and dashboard evidence catalog is documented in
+`../evidence/screenshots/README.md`.
 
 ## Ansible evidence commands
 

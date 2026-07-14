@@ -213,7 +213,9 @@ Do not stop Jenkins while a production build is running. Check first:
 
 ```bash
 sudo test -f /var/lib/jenkins/queue.xml && sudo grep -n campustrade-ci /var/lib/jenkins/queue.xml || true
-sudo tail -50 /var/lib/jenkins/jobs/campustrade-ci/builds/lastBuild/log
+latest=$(sudo awk '$1 == "lastCompletedBuild" {print $2}' \
+  /var/lib/jenkins/jobs/campustrade-ci/builds/permalinks)
+sudo tail -50 "/var/lib/jenkins/jobs/campustrade-ci/builds/$latest/log"
 ```
 
 The normal release workflow is:
@@ -224,16 +226,37 @@ The normal release workflow is:
 4. Confirm `DEPLOY_TO_VPS=true` and `RUN_SONARQUBE=true`.
 5. Require every stage to be green before accepting the release.
 
-Jenkins runs all frontend/backend tests and coverage on the VPS inside pinned
-containers. It sends source and LCOV coverage to SonarQube, waits for the
-quality gate, scans production images with Trivy, deploys K3s, runs smoke
-tests, and archives system evidence.
+Jenkins runs the backend tests and coverage plus the frontend production build
+on the VPS inside pinned containers. It sends source and LCOV coverage to
+SonarQube, waits for the quality gate, scans production images with Trivy,
+deploys K3s, runs smoke tests, and archives system evidence. Browser evidence is
+captured against the deployed public VPS rather than a local development server.
 
 Follow a build directly on the VPS:
 
 ```bash
-sudo tail -f /var/lib/jenkins/jobs/campustrade-ci/builds/lastBuild/log
+latest=$(sudo awk '$1 == "lastCompletedBuild" {print $2}' \
+  /var/lib/jenkins/jobs/campustrade-ci/builds/permalinks)
+sudo tail -f "/var/lib/jenkins/jobs/campustrade-ci/builds/$latest/log"
 ```
+
+Inspect the archived test and infrastructure reports from the Jenkins build
+page under **Artifacts**, or directly on the VPS:
+
+```bash
+successful=$(sudo awk '$1 == "lastSuccessfulBuild" {print $2}' \
+  /var/lib/jenkins/jobs/campustrade-ci/builds/permalinks)
+sudo find "/var/lib/jenkins/jobs/campustrade-ci/builds/$successful/archive" \
+  -maxdepth 4 -type f | sort
+sudo grep -E 'Tests:|Aggregate coverage|QUALITY GATE STATUS|Finished:' \
+  "/var/lib/jenkins/jobs/campustrade-ci/builds/$successful/log"
+```
+
+The verified 14 July 2026 release is Jenkins build 24, commit
+`64bb3654ed23172b8dfdddac6db69a68ffdad6a1`, immutable image tag
+`64bb3654ed23`: 310 tests passed, all four coverage measures exceeded 80%, the
+SonarQube gate passed with zero open vulnerabilities, all ten images passed the
+Trivy critical-vulnerability gate, and all 11 Prometheus targets were up.
 
 ## 10. Use SonarQube correctly
 
@@ -413,4 +436,3 @@ curl http://127.0.0.1:9000/api/system/status
   full control to authenticated users and blocks anonymous access.
 - Back up data before database, SonarQube, or Kubernetes upgrades.
 - Make production changes through GitHub and the green Jenkins pipeline.
-

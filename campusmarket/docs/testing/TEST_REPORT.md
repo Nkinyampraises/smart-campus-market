@@ -2,7 +2,7 @@
 
 ## Release decision
 
-The backend release gate passes with **306 automated tests** across nine independently deployable services. Aggregate coverage is **92.49% statements, 80.14% branches, 80.30% functions, and 95.49% lines**, satisfying the project requirement that test coverage be at least 80%.
+The backend release gate passes with **310 automated tests** across nine independently deployable services. Aggregate coverage is **92.59% statements, 80.28% branches, 80.60% functions, and 95.56% lines**, satisfying the project requirement that test coverage be at least 80%. Jenkins build 24 executed the tests on the VPS, SonarQube reported `QUALITY GATE STATUS: PASSED`, and only then did the pipeline proceed to production image creation.
 
 ## Test strategy
 
@@ -19,16 +19,16 @@ The backend release gate passes with **306 automated tests** across nine indepen
 
 | Service | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|
-| API gateway | 82.10% | 62.74% | 58.82% | 84.88% |
-| Authentication | 95.65% | 85.71% | 80.95% | 98.29% |
-| User | 87.50% | 69.69% | 71.42% | 93.00% |
-| Listing | 92.30% | 85.89% | 75.00% | 94.77% |
-| Chat | 92.53% | 79.76% | 88.00% | 96.59% |
-| Administration | 93.49% | 71.87% | 78.26% | 97.34% |
-| AI assistance | 94.87% | 76.25% | 85.00% | 97.18% |
-| Search | 95.32% | 92.30% | 90.00% | 96.59% |
-| Notification | 93.00% | 84.28% | 88.00% | 95.58% |
-| **Aggregate** | **92.49%** | **80.14%** | **80.30%** | **95.49%** |
+| API gateway | 83.00% | 63.26% | 63.15% | 85.71% |
+| Authentication | 95.67% | 85.71% | 80.95% | 98.30% |
+| User and shared CORS policy | 88.70% | 71.79% | 75.00% | 93.75% |
+| Listing | 92.34% | 85.89% | 75.00% | 94.80% |
+| Chat | 92.57% | 79.76% | 88.00% | 96.61% |
+| Administration | 93.54% | 71.87% | 78.26% | 97.36% |
+| AI assistance | 94.90% | 76.25% | 85.00% | 97.20% |
+| Search | 95.37% | 92.30% | 90.00% | 96.62% |
+| Notification | 93.05% | 84.28% | 88.00% | 95.62% |
+| **Aggregate** | **92.59%** | **80.28%** | **80.60%** | **95.56%** |
 
 The API gateway has lower function coverage because production-only process-signal and proxy error callbacks are deliberately excluded from destructive test invocation. Its user-visible routes, security headers, rate limits, CORS policy, request IDs, JWT behavior, service routing, and operational endpoints are covered. The aggregate gate remains fail-closed across all four metrics.
 
@@ -53,6 +53,14 @@ The coverage runner writes:
 - `coverage/services/<service>/lcov.info` — SonarQube-compatible detail.
 
 Jenkins archives these reports and blocks deployment when any aggregate metric is below 80%.
+
+SonarQube imports the backend LCOV report, performs static analysis across the
+backend, frontend, and operational scripts, and enforces the quality gate on the
+VPS. The frontend is validated by its production compile, container smoke test,
+and deployed-browser route suite rather than being misrepresented as Jest
+coverage. At the build 24 analysis point, SonarQube reported zero open
+vulnerabilities. Its pre-existing maintainability backlog remains visible in the
+dashboard instead of being hidden from examiners.
 
 ## Production acceptance checks
 
@@ -82,3 +90,11 @@ Jenkins archives these reports and blocks deployment when any aggregate metric i
 ## Residual risks
 
 The cluster is intentionally single-node because the exam scope provides one VPS; PodDisruptionBudgets and multiple edge replicas protect rolling updates but cannot survive total VM failure. TLS requires a project domain and certificate automation to replace the current IP-based HTTP endpoint. These are documented recommendations rather than hidden limitations.
+
+SonarQube Community Build explicitly provides less advanced security analysis
+than commercial editions. Its zero-open-vulnerability result is therefore one
+layer, not a claim of exhaustive application-security proof. The release also
+uses hostile-input/authentication tests, production dependency audits, non-root
+container policies, secret scanning controls, and Trivy image scanning. A future
+production budget should add a dedicated DAST/SAST security product and an
+independent penetration test.
