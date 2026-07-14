@@ -14,7 +14,8 @@ jenkins_stage=/var/lib/jenkins/campustrade-operator.properties
 jenkins_hook=/var/lib/jenkins/init.groovy.d/60-campustrade-operator.groovy
 
 [[ -r "$production_env" ]] || { echo "Missing protected environment: $production_env" >&2; exit 1; }
-install -d -o root -g root -m 0700 "$shared_dir"
+getent group campustrade-deploy >/dev/null || groupadd --system campustrade-deploy
+install -d -o azureuser -g campustrade-deploy -m 2770 "$shared_dir"
 umask 077
 
 new_password() {
@@ -35,6 +36,28 @@ if [[ ! -f "$credential_file" ]]; then
     printf 'CAMPUSTRADE_DEMO_PASSWORD=%s\n' "$(new_password)"
     printf 'CREATED_AT=%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   } | install -o root -g root -m 0600 /dev/stdin "$credential_file"
+fi
+
+ensure_credential() {
+  local key="$1"
+  local value="$2"
+  if ! grep -q "^${key}=" "$credential_file"; then
+    printf '%s=%s\n' "$key" "$value" >>"$credential_file"
+  fi
+}
+
+ensure_credential SEED_USER_1_EMAIL 'amina.nfor@campustrade.local'
+ensure_credential SEED_USER_1_PASSWORD "$(new_password)"
+ensure_credential SEED_USER_2_EMAIL 'joel.tamba@campustrade.local'
+ensure_credential SEED_USER_2_PASSWORD "$(new_password)"
+ensure_credential SEED_USER_3_EMAIL 'grace.mbi@campustrade.local'
+ensure_credential SEED_USER_3_PASSWORD "$(new_password)"
+ensure_credential SEED_USER_4_EMAIL 'eric.nji@campustrade.local'
+ensure_credential SEED_USER_4_PASSWORD "$(new_password)"
+
+if [[ "${CREDENTIALS_ONLY:-false}" == true ]]; then
+  echo "Operator credentials generated at $credential_file (values suppressed)."
+  exit 0
 fi
 
 # shellcheck disable=SC1090
@@ -125,15 +148,16 @@ register_campustrade_user() {
 echo 'Provisioning CampusTrade administrator and demonstration accounts...'
 register_campustrade_user "$CAMPUSTRADE_ADMIN_EMAIL" "$CAMPUSTRADE_ADMIN_PASSWORD" CampusTrade Administrator
 register_campustrade_user "$CAMPUSTRADE_DEMO_EMAIL" "$CAMPUSTRADE_DEMO_PASSWORD" Demo Student
-k3s kubectl -n campustrade exec postgres-0 -- \
-  psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" \
-  -c "UPDATE users SET role='admin' WHERE email='$CAMPUSTRADE_ADMIN_EMAIL';" >/dev/null
+printf "UPDATE users SET role='admin' WHERE email=:'admin_email';\n" | \
+  k3s kubectl -n campustrade exec -i postgres-0 -- \
+    psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" \
+      -v "admin_email=$CAMPUSTRADE_ADMIN_EMAIL" >/dev/null
 
 for account in admin demo; do
   if [[ "$account" == admin ]]; then
-    email="$CAMPUSTRADE_ADMIN_EMAIL"; password="$CAMPUSTRADE_ADMIN_PASSWORD"; expected_role=admin
+    email="$CAMPUSTRADE_ADMIN_EMAIL"; password="$CAMPUSTRADE_ADMIN_PASSWORD"; expected_role='admin'
   else
-    email="$CAMPUSTRADE_DEMO_EMAIL"; password="$CAMPUSTRADE_DEMO_PASSWORD"; expected_role=user
+    email="$CAMPUSTRADE_DEMO_EMAIL"; password="$CAMPUSTRADE_DEMO_PASSWORD"; expected_role='user'
   fi
   login_payload="$(jq -n --arg email "$email" --arg password "$password" \
     '{email:$email,password:$password}')"
