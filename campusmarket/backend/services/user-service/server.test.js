@@ -57,6 +57,30 @@ beforeAll(() => {
 
 afterEach(() => jest.clearAllMocks());
 
+describe('Shared CORS policy', () => {
+  const { createCorsOptions } = require('../../shared/corsOptions');
+
+  it('allows service-to-service requests without a browser origin', () => {
+    const callback = jest.fn();
+    createCorsOptions().origin(undefined, callback);
+    expect(callback).toHaveBeenCalledWith(null, true);
+  });
+
+  it('parses multiple trusted origins and rejects all others', () => {
+    process.env.FRONTEND_URL = 'http://trusted.test, http://second.test';
+    const options = createCorsOptions();
+    const allowedCallback = jest.fn();
+    const blockedCallback = jest.fn();
+
+    options.origin('http://second.test', allowedCallback);
+    options.origin('http://untrusted.test', blockedCallback);
+
+    expect(allowedCallback).toHaveBeenCalledWith(null, true);
+    expect(blockedCallback.mock.calls[0][0]).toMatchObject({ status: 403 });
+    process.env.FRONTEND_URL = 'http://trusted.test';
+  });
+});
+
 describe('User Service — GET /api/users/me', () => {
   it('rejects unauthenticated requests', async () => {
     const res = await request(app).get('/api/users/me');
