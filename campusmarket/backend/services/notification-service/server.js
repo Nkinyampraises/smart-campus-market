@@ -3,6 +3,7 @@ const express = require('express');
 const nodemailer = require('nodemailer');
 const webpush = require('web-push');
 const cors = require('cors');
+const { createCorsOptions } = require('../../shared/corsOptions');
 const helmet = require('helmet');
 const { collectDefaultMetrics, register } = require('prom-client');
 const pool = require('../../shared/db');
@@ -35,7 +36,7 @@ const mailer = nodemailer.createTransport({
 const SITE_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim();
 
 app.use(helmet());
-app.use(cors());
+app.use(cors(createCorsOptions()));
 app.use(express.json());
 app.use(metricsMiddleware);
 collectDefaultMetrics();

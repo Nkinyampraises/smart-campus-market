@@ -5,7 +5,7 @@ const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432', 10),
   user: process.env.DB_USER || 'campustrade',
-  password: process.env.DB_PASSWORD || 'campustrade_pass',
+  password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'campustrade',
   max: 20,
   idleTimeoutMillis: 30000,

@@ -3,6 +3,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const { createCorsOptions } = require('../../shared/corsOptions');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { collectDefaultMetrics, register } = require('prom-client');
@@ -25,7 +26,7 @@ let server;
 collectDefaultMetrics();
 
 app.use(helmet());
-app.use(cors());
+app.use(cors(createCorsOptions()));
 app.use(express.json());
 app.use(metricsMiddleware);
 

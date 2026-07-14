@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const { createCorsOptions } = require('../../shared/corsOptions');
 const helmet = require('helmet');
 const multer = require('multer');
 const { collectDefaultMetrics, register } = require('prom-client');
@@ -21,7 +22,7 @@ let server;
 
 collectDefaultMetrics();
 app.use(helmet());
-app.use(cors());
+app.use(cors(createCorsOptions()));
 app.use(express.json({ limit: '10mb' }));
 app.use(metricsMiddleware);
 

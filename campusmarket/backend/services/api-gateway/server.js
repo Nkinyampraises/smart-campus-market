@@ -37,7 +37,7 @@ app.use(helmet({
 
 // Request ID + audit logging
 app.use((req, res, next) => {
-  req.id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  req.id = crypto.randomUUID();
   res.setHeader('X-Request-Id', req.id);
   const start = Date.now();
   res.on('finish', () => {

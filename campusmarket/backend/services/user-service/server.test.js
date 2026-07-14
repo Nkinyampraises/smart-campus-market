@@ -51,6 +51,7 @@ let app;
 
 beforeAll(() => {
   process.env.JWT_SECRET = SECRET;
+  process.env.FRONTEND_URL = 'http://trusted.test';
   app = require('./server');
 });
 
@@ -215,6 +216,22 @@ describe('User Service — Health & Metrics', () => {
   it('GET /metrics returns prometheus data', async () => {
     const res = await request(app).get('/metrics');
     expect(res.status).toBe(200);
+  });
+
+  it('permits the configured browser origin', async () => {
+    const res = await request(app)
+      .get('/health')
+      .set('Origin', 'http://trusted.test');
+    expect(res.status).toBe(200);
+    expect(res.headers['access-control-allow-origin']).toBe('http://trusted.test');
+  });
+
+  it('rejects an untrusted browser origin', async () => {
+    const res = await request(app)
+      .get('/health')
+      .set('Origin', 'http://untrusted.test');
+    expect(res.status).toBe(403);
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
   });
 
   it('error handler returns 500 for internal errors', async () => {

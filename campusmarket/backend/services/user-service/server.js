@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { createCorsOptions } = require('../../shared/corsOptions');
 const helmet = require('helmet');
 const { collectDefaultMetrics, register } = require('prom-client');
 const pool = require('../../shared/db');
@@ -17,7 +18,7 @@ let server;
 
 collectDefaultMetrics();
 app.use(helmet());
-app.use(cors());
+app.use(cors(createCorsOptions()));
 app.use(express.json());
 app.use(metricsMiddleware);
 
