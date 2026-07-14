@@ -4,6 +4,8 @@
 
 CampusTrade is a campus marketplace for buying, selling, discovering, and negotiating goods and services with other students. The production application is available at `http://4.168.192.5`.
 
+Platform administrators should use the separate [production operations runbook](../operations/PLATFORM_OPERATIONS_RUNBOOK.md) for service accounts, dashboards, deployments, health checks, backups, and stop/start/restart commands.
+
 ## Roles
 
 | Role | Main capabilities |
