@@ -71,6 +71,18 @@ const result = {
 };
 writeFileSync(path.join(reportRoot, 'summary.json'), `${JSON.stringify(result, null, 2)}\n`);
 
+// Jest writes each report relative to its service working directory. Rewrite
+// those source paths before merging so SonarQube can map coverage back to the
+// repository files mounted in the scanner container.
+const combinedLcov = services.map((service) => {
+  const lcovPath = path.join(reportRoot, 'services', service, 'lcov.info');
+  return readFileSync(lcovPath, 'utf8').replace(
+    /^SF:(.+)$/gm,
+    (_, source) => `SF:${path.posix.join('backend', 'services', service, source.replace(/\\/g, '/'))}`,
+  );
+}).join('\n');
+writeFileSync(path.join(reportRoot, 'lcov.info'), combinedLcov);
+
 const rows = serviceResults.map((service) => `<tr><td>${service.service}</td>${metrics.map((metric) => `<td>${service[metric]}%</td>`).join('')}</tr>`).join('\n');
 const cards = metrics.map((metric) => `<div class="card"><span>${metric}</span><strong>${aggregate[metric]}%</strong></div>`).join('');
 writeFileSync(path.join(reportRoot, 'index.html'), `<!doctype html>

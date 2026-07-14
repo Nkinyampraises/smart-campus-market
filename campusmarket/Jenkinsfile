@@ -107,6 +107,9 @@ pipeline {
               -w /workspace \
               "$NODE_IMAGE" \
               sh -lc 'npm run install:backend && npm run build:backend && npm run test:backend && npm run coverage:backend && npm run audit:backend'
+
+            test -s coverage/lcov.info
+            grep -q '^SF:backend/services/' coverage/lcov.info
           '''
         }
       }
@@ -127,7 +130,7 @@ pipeline {
               docker run --rm \
                 --network host \
                 --user "$(id -u):$(id -g)" \
-                --tmpfs /tmp:rw,exec,nosuid,nodev,size=512m,mode=1777 \
+                --tmpfs /tmp:rw,exec,nosuid,nodev,size=1536m,mode=1777 \
                 -e SONAR_HOST_URL \
                 -e SONAR_TOKEN \
                 -e SONAR_USER_HOME=/tmp/.sonar \
@@ -146,11 +149,19 @@ pipeline {
       steps {
         dir('campusmarket') {
           sh '''
-            docker compose \
-              -p "$CI_COMPOSE_PROJECT_NAME" \
-              --env-file backend/.env.example \
-              -f "$COMPOSE_FILE" \
-              build --pull
+            build_images() {
+              docker compose \
+                -p "$CI_COMPOSE_PROJECT_NAME" \
+                --env-file backend/.env.example \
+                -f "$COMPOSE_FILE" \
+                build "$@"
+            }
+
+            if ! build_images --pull; then
+              echo 'Initial BuildKit build failed; clearing build cache and retrying once.' >&2
+              docker builder prune --all --force
+              build_images --pull --no-cache
+            fi
           '''
         }
       }
