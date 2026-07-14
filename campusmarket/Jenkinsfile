@@ -61,6 +61,9 @@ pipeline {
       steps {
         dir('campusmarket') {
           sh '''
+            rendered_manifest="$(mktemp)"
+            trap 'rm -f "$rendered_manifest"' EXIT
+
             docker compose \
               -p "$CI_COMPOSE_PROJECT_NAME" \
               --env-file backend/.env.example \
@@ -72,9 +75,9 @@ pipeline {
               -v "$PWD:/workspace" \
               -w /workspace \
               "$KUBECTL_IMAGE" \
-              kustomize k8s/base >/tmp/campustrade-kubernetes.yaml
+              kustomize k8s/base >"$rendered_manifest"
 
-            test "$(grep -c '^kind: Deployment$' /tmp/campustrade-kubernetes.yaml)" -ge 12
+            test "$(grep -c '^kind: Deployment$' "$rendered_manifest")" -ge 12
             awk '
               /^kind: Deployment$/ { deployment = 1; name = ""; recreate = 0; next }
               deployment && /^  name: (grafana|prometheus)$/ { name = $2 }
@@ -84,7 +87,7 @@ pipeline {
                 deployment = 0
               }
               END { exit protected_hostport_deployments == 2 ? 0 : 1 }
-            ' /tmp/campustrade-kubernetes.yaml
+            ' "$rendered_manifest"
             bash backend/scripts/test-platform-rebuild.sh
           '''
         }
