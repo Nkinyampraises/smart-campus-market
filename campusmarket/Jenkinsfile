@@ -218,7 +218,7 @@ pipeline {
               test -d "$DEPLOY_ROOT"
               test -w "$DEPLOY_ROOT/current"
               mkdir -p "$DEPLOY_ROOT/current" "$DEPLOY_ROOT/backups" "$DEPLOY_ROOT/evidence"
-              rsync -a --delete \
+              rsync -a --no-owner --no-group --delete \
                 --exclude '.git' \
                 --exclude 'node_modules' \
                 --exclude 'coverage' \
