@@ -80,12 +80,12 @@ systemctl stop k3s || true
 # after the service stops. Remove only mounts whose targets are inside the
 # allowlisted kubelet tree, deepest first, so cleanup is both safe and resumable.
 mapfile -t kubelet_mounts < <(
-  findmnt -Rnr -o TARGET /var/lib/kubelet 2>/dev/null | sort -r || true
+  findmnt -rn -o TARGET 2>/dev/null | sort -r || true
 )
 for mount_target in "${kubelet_mounts[@]}"; do
   case "$mount_target" in
     /var/lib/kubelet/*) umount --lazy -- "$mount_target" || true ;;
-    *) echo "Unsafe K3s mount target rejected: $mount_target" >&2; exit 1 ;;
+    *) continue ;;
   esac
 done
 

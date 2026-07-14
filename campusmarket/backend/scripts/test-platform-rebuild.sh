@@ -74,6 +74,7 @@ grep -q 'Dry run passed' "$work_dir/rebuild-dry-run.log"
 # A retry after a partial cleanup must retain the already preserved external
 # configuration rather than replacing it with an empty file.
 grep -Fq 'elif [[ ! -f' "$scripts_dir/rebuild-vps-from-scratch.sh"
+grep -Fq 'findmnt -rn -o TARGET' "$scripts_dir/rebuild-vps-from-scratch.sh"
 grep -Fq '/var/lib/kubelet/*' "$scripts_dir/rebuild-vps-from-scratch.sh"
 
 for script in \
