@@ -105,6 +105,36 @@ for mount_target in "${k3s_mounts[@]}"; do
   esac
 done
 
+# Remove only the CNI portmap plugin's host-port NAT state. Without this,
+# rules from the erased cluster can precede new rules and forward loopback
+# dashboard ports to pod IPs that no longer exist.
+mapfile -t cni_dnat_chains < <(
+  iptables -t nat -S 2>/dev/null | \
+    awk '$1 == "-N" && $2 ~ /^CNI-DN-/ { print $2 }' || true
+)
+for chain in CNI-HOSTPORT-DNAT CNI-HOSTPORT-MASQ CNI-HOSTPORT-SETMARK "${cni_dnat_chains[@]}"; do
+  iptables -t nat -F "$chain" 2>/dev/null || true
+done
+delete_nat_jump() {
+  local parent_chain="$1"
+  local target_chain="$2"
+  local rule_number
+  while rule_number="$(iptables -t nat -L "$parent_chain" --line-numbers -n 2>/dev/null | \
+    awk -v target="$target_chain" '$2 == target { print $1; exit }')" && \
+    [[ -n "$rule_number" ]]
+  do
+    iptables -t nat -D "$parent_chain" "$rule_number"
+  done
+}
+delete_nat_jump PREROUTING CNI-HOSTPORT-DNAT
+delete_nat_jump OUTPUT CNI-HOSTPORT-DNAT
+delete_nat_jump POSTROUTING CNI-HOSTPORT-MASQ
+for chain in "${cni_dnat_chains[@]}" CNI-HOSTPORT-DNAT CNI-HOSTPORT-MASQ CNI-HOSTPORT-SETMARK; do
+  iptables -t nat -X "$chain" 2>/dev/null || true
+done
+ip link delete cni0 2>/dev/null || true
+ip link delete flannel.1 2>/dev/null || true
+
 echo 'Deleting application, CI, analysis, orchestration, monitoring, and database state...'
 for path in "${wipe_paths[@]}"; do
   rm -rf --one-file-system -- "$path"
