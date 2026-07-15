@@ -108,12 +108,17 @@ host system services / protected Compose project
 | SonarQube health | UP |
 | Public API | `status: ok` |
 
-Raw evidence is stored on the VPS at `/srv/campustrade/evidence/production-20260714`, including Kubernetes status, API health, Prometheus targets, Grafana health, SonarQube status, and the Jenkins-style system-information HTML report.
+The destructive clean rebuild was revalidated on 15 July 2026. Its immutable
+machine evidence is stored under
+`/srv/campustrade/evidence/clean-rebuild-final-20260715T002951Z`; every Jenkins
+build also archives its own evidence under
+`/var/lib/jenkins/workspace/campustrade-ci/evidence/build-<number>`. The protected
+files `/srv/campustrade/shared/clean-rebuild-commit` and
+`/srv/campustrade/shared/clean-rebuild-completed-at` identify the accepted release
+without putting source-control metadata in the production release directory.
 
-Jenkins build 24 also archived its machine evidence under
-`/var/lib/jenkins/workspace/campustrade-ci/evidence/build-24`. The repository's
-37-image Android and dashboard evidence catalog is documented in
-`../evidence/screenshots/README.md`.
+The repository's 37-image Android and dashboard evidence catalog is documented
+in `../evidence/screenshots/README.md`.
 
 ## Ansible evidence commands
 
@@ -132,7 +137,11 @@ The provisioning play completed with 18 tasks, zero failures, and a Ready K3s no
 
 ## Rollback
 
-`k8s/scripts/rollback-to-compose.sh` scales down Kubernetes application workloads and starts the preserved Compose stack. The pre-cutover database dump and original Docker volumes are retained until the operator explicitly completes the retention period. No automated cleanup deletes production data.
+The accepted clean-rebuild topology has no legacy Compose application stack to
+fall back to. Roll back by redeploying a previously accepted immutable Git
+commit through Jenkins; restore PostgreSQL from the corresponding protected VPS
+backup when a schema or data rollback is required. The clean-rebuild guard never
+deletes paths outside its explicit CampusTrade allowlist.
 
 ## Network security
 

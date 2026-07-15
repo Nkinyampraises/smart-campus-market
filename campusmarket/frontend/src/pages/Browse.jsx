@@ -47,12 +47,19 @@ const ListingGridCard = ({ listing, onClick, onWishlist, isWishlisted }) => {
   const seller = listing.seller || {};
 
   return (
-    <div onClick={onClick} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all cursor-pointer group border border-gray-100">
-      <div className="relative overflow-hidden" style={{ height: '200px' }}>
+    <article className="group relative min-w-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all hover:shadow-lg">
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={`View ${listing.title}`}
+        className="absolute inset-0 z-10 cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff6b1a] focus-visible:ring-inset"
+      />
+      <div className="relative h-48 overflow-hidden sm:h-[200px]">
         <img src={image} alt={listing.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
         <button
           onClick={(e) => { e.stopPropagation(); onWishlist && onWishlist(listing); }}
-          className="absolute top-3 right-3 w-9 h-9 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+          aria-label={isWishlisted ? `Remove ${listing.title} from wishlist` : `Add ${listing.title} to wishlist`}
+          className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md transition-transform hover:scale-110"
         >
           <span className="material-symbols-outlined text-[20px]"
             style={{ color: isWishlisted ? '#ff6b1a' : '#9ca3af', fontVariationSettings: isWishlisted ? "'FILL' 1" : "'FILL' 0" }}>
@@ -61,7 +68,7 @@ const ListingGridCard = ({ listing, onClick, onWishlist, isWishlisted }) => {
         </button>
       </div>
       <div className="p-4">
-        <div className="flex items-center justify-between mb-2">
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <span className="text-[11px] font-black tracking-wider uppercase" style={{ color: '#00af74' }}>
             {listing.category || listing.categoryGroup}
           </span>
@@ -74,18 +81,18 @@ const ListingGridCard = ({ listing, onClick, onWishlist, isWishlisted }) => {
           <span className="material-symbols-outlined text-[14px]">location_on</span>
           <span>{listing.location || listing.campus_zone}</span>
         </div>
-        <div className="flex items-center justify-between border-t border-gray-50 pt-3">
-          <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center justify-between gap-3 border-t border-gray-50 pt-3">
+          <div className="flex min-w-0 items-center gap-2">
             <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-black"
               style={{ backgroundColor: seller.color || '#ff6b1a' }}>
               {seller.initials || (listing.seller_name ? listing.seller_name[0] : 'U')}
             </div>
-            <span className="text-[12px] font-medium text-[#1b1c1c]">{seller.name || listing.seller_name || 'Seller'}</span>
+            <span className="truncate text-[12px] font-medium text-[#1b1c1c]">{seller.name || listing.seller_name || 'Seller'}</span>
           </div>
-          <span className="text-[11px] text-gray-400">{listing.postedAgo || listing.created_at ? new Date(listing.created_at).toLocaleDateString() : ''}</span>
+          <span className="shrink-0 text-[11px] text-gray-400">{listing.postedAgo || listing.created_at ? new Date(listing.created_at).toLocaleDateString() : ''}</span>
         </div>
       </div>
-    </div>
+    </article>
   );
 };
 
@@ -129,13 +136,13 @@ const Browse = () => {
   const isWishlisted = (id) => wishlist.some((w) => String(w.id) === String(id));
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5]">
+    <div className="min-h-screen overflow-x-hidden bg-[#f5f5f5]">
       <Topbar activePage="browse" />
 
-      <div className="flex max-w-[1400px] mx-auto">
+      <div className="mx-auto flex w-full max-w-[1400px] min-w-0">
 
         {/* ── Sidebar ────────────────────────────────────────────────────── */}
-        <aside className="w-[240px] flex-shrink-0 bg-white min-h-[calc(100vh-64px)] border-r border-gray-100 flex flex-col">
+        <aside className="hidden min-h-[calc(100vh-64px)] w-[240px] flex-shrink-0 flex-col border-r border-gray-100 bg-white lg:flex">
           <div className="p-6 flex-1">
             {/* Categories */}
             <div className="mb-8">
@@ -212,25 +219,62 @@ const Browse = () => {
         </aside>
 
         {/* ── Main content ───────────────────────────────────────────────── */}
-        <main className="flex-1 p-8">
+        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
+          {/* Mobile controls replace the fixed desktop sidebar. */}
+          <section className="mb-5 rounded-2xl border border-gray-100 bg-white p-4 lg:hidden" aria-label="Marketplace filters">
+            <label htmlFor="mobile-category" className="mb-2 block text-[12px] font-black uppercase tracking-widest text-[#ff6b1a]">
+              Browse category
+            </label>
+            <select
+              id="mobile-category"
+              value={activeCategory}
+              onChange={(event) => setCategory(event.target.value)}
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-[14px] font-bold text-[#1b1c1c] focus:border-[#ff6b1a] focus:outline-none focus:ring-2 focus:ring-orange-100"
+            >
+              {CATEGORIES.map((category) => <option key={category.name}>{category.name}</option>)}
+            </select>
+
+            <fieldset className="mt-4">
+              <legend className="mb-2 text-[12px] font-bold text-gray-500">Condition</legend>
+              <div className="flex flex-wrap gap-2">
+                {CONDITIONS.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={condition === value}
+                    onClick={() => setCondition(value)}
+                    className={`rounded-full px-4 py-2 text-[12px] font-bold transition-colors ${
+                      condition === value
+                        ? 'bg-[#ff6b1a] text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {value}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          </section>
+
           {/* Header row */}
-          <div className="flex items-end justify-between mb-6">
-            <div>
-              <h1 className="text-[28px] font-black text-[#1b1c1c]">{activeCategory}</h1>
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="break-words text-[24px] font-black text-[#1b1c1c] sm:text-[28px]">{activeCategory}</h1>
               <p className="text-[14px] text-gray-400 mt-1">
                 {loading ? 'Loading…' : `Showing ${listings.length} item${listings.length !== 1 ? 's' : ''} near your campus`}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] text-gray-500">Sort by:</span>
+            <label className="flex w-full items-center gap-2 sm:w-auto">
+              <span className="shrink-0 text-[13px] text-gray-500">Sort by:</span>
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-[13px] font-semibold focus:outline-none focus:border-[#ff6b1a] bg-white"
+                aria-label="Sort marketplace listings"
+                className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-semibold focus:border-[#ff6b1a] focus:outline-none sm:flex-none"
               >
                 {SORT_OPTIONS.map((o) => <option key={o}>{o}</option>)}
               </select>
-            </div>
+            </label>
           </div>
 
           {/* Grid */}
