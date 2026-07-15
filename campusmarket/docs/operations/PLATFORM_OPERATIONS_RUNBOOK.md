@@ -322,9 +322,30 @@ sudo k3s kubectl -n campustrade-observability scale deployment/grafana --replica
 Check Prometheus targets:
 
 ```bash
-curl -fsS http://127.0.0.1:9090/api/v1/targets | \
+sudo k3s kubectl -n campustrade-observability exec deployment/prometheus -- \
+  wget -qO- http://127.0.0.1:9090/api/v1/targets | \
   jq -r '.data.activeTargets[] | [.labels.job,.health,.scrapeUrl] | @tsv'
 ```
+
+Opening the public Prometheus root URL redirects to a pre-populated `up` query.
+Every healthy scrape target must appear with value `1`. The Query page is a
+query workbench, not a dashboard; use Grafana for the visual system overview.
+
+On the Alerts page, `inactive` is the healthy state: the rule is loaded and its
+condition is currently false. `pending` means the condition is true but has not
+yet remained true for the configured `for` duration. `firing` means the alert
+condition and duration have both been met and require investigation.
+
+Useful production queries:
+
+| Purpose | PromQL |
+|---|---|
+| Scrape health | `up` |
+| Unhealthy targets | `up == 0` |
+| Request rate by service | `sum by (job) (rate(http_requests_total[5m]))` |
+| 5xx rate by service | `sum by (job) (rate(http_requests_total{status_code=~"5.."}[5m]))` |
+| Host memory use percent | `100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)` |
+| Filesystem free percent | `100 * node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}` |
 
 Grafana and Prometheus are hosted on the VPS through distinct TLS hostnames.
 Grafana serves its own application files from its configured public root URL;

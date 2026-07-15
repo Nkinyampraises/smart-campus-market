@@ -111,12 +111,32 @@ check_url_with_basic_auth() {
   return 1
 }
 
+check_prometheus_default_query() {
+  local final_url
+
+  final_url="$(curl --fail --silent --show-error --location \
+    --output /dev/null --write-out '%{url_effective}' \
+    --user "$prometheus_username:$prometheus_password" \
+    "${PUBLIC_PROMETHEUS_URL}/")" || {
+      echo "Smoke test failed: Prometheus default health query is unavailable" >&2
+      return 1
+    }
+
+  if [[ "$final_url" != "${PUBLIC_PROMETHEUS_URL}/query?g0.expr=up"* ]]; then
+    echo "Smoke test failed: Prometheus root did not open the default health query (${final_url})" >&2
+    return 1
+  fi
+
+  echo "Smoke test passed: Prometheus default health query"
+}
+
 check_url "${BASE_URL}/" "frontend"
 check_url "${BASE_URL}/health" "API gateway health"
 check_url "${BASE_URL}/api/admin/public-stats" "public statistics API"
 check_url "${GRAFANA_URL}/api/health" "VPS Grafana health"
 check_url "${PUBLIC_GRAFANA_URL}/api/health" "public VPS Grafana route"
 check_url_with_basic_auth "${PUBLIC_PROMETHEUS_URL}/-/ready" "authenticated public VPS Prometheus route"
+check_prometheus_default_query
 check_url "${PUBLIC_JENKINS_URL}/login" "public VPS Jenkins route"
 check_url "${PUBLIC_SONAR_URL}/api/system/status" "public VPS SonarQube route"
 

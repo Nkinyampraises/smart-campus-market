@@ -86,7 +86,11 @@ grep -Fq 'native clean K3s deployment' "$root_dir/Jenkinsfile"
 grep -Fq 'kind: IngressRoute' "$root_dir/k8s/base/platform-access.yaml"
 grep -Fq 'hostNetwork: true' "$root_dir/k8s/base/platform-access.yaml"
 grep -Fq 'secret: prometheus-web-auth' "$root_dir/k8s/base/platform-access.yaml"
+grep -Fq 'name: prometheus-default-query' "$root_dir/k8s/base/platform-access.yaml"
+grep -Fq 'replacement: https://prometheus.4-168-192-5.sslip.io:80/query?g0.expr=up' \
+  "$root_dir/k8s/base/platform-access.yaml"
 grep -Fq 'public VPS Grafana route' "$scripts_dir/smoke-test-running.sh"
+grep -Fq 'Prometheus default health query' "$scripts_dir/smoke-test-running.sh"
 grep -Fq 'public VPS Jenkins route' "$scripts_dir/smoke-test-running.sh"
 if grep -Eq 'localhost:(8080|9000|9090|3009)|SSH tunnel to port' \
   "$root_dir/README.md" "$root_dir/backend/OPERATIONS.md" \

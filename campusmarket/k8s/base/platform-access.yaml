@@ -133,6 +133,17 @@ spec:
     removeHeader: true
 ---
 apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: prometheus-default-query
+  namespace: campustrade-observability
+spec:
+  redirectRegex:
+    regex: ^https?://prometheus\.4-168-192-5\.sslip\.io:80/?$
+    replacement: https://prometheus.4-168-192-5.sslip.io:80/query?g0.expr=up&g0.show_tree=0&g0.tab=table&g0.range_input=1h&g0.res_type=auto&g0.res_density=medium&g0.display_mode=lines&g0.show_exemplars=0
+    permanent: false
+---
+apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: grafana-public
@@ -155,7 +166,7 @@ spec:
   routes:
     - kind: Rule
       match: Host(`prometheus.4-168-192-5.sslip.io`)
-      middlewares: [{ name: prometheus-auth }]
+      middlewares: [{ name: prometheus-auth }, { name: prometheus-default-query }]
       services: [{ name: prometheus, port: 9090 }]
   tls: { certResolver: campustrade }
 ---
