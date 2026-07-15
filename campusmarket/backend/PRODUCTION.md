@@ -33,14 +33,16 @@ If your environment uses an intercepting proxy/custom CA and Docker image builds
 Production entrypoint:
 - Nginx: `http://<server-ip>:80`
 
-Administrative services are deliberately bound to the VM loopback interface:
-- Grafana: `http://127.0.0.1:3009`
-- Prometheus: `http://127.0.0.1:9090`
-- Jenkins: `http://127.0.0.1:8080`
-- SonarQube: `http://127.0.0.1:9000`
+Administrative upstream ports remain bound to the VPS loopback or Kubernetes
+network. Access them only through the TLS routes published by Traefik:
 
-Do not create public Azure inbound rules for these ports. Use the SSH tunnel
-documented in `OPERATIONS.md`.
+- Grafana: `https://grafana.4-168-192-5.sslip.io:80`
+- Prometheus: `https://prometheus.4-168-192-5.sslip.io:80`
+- Jenkins: `https://jenkins.4-168-192-5.sslip.io:80`
+- SonarQube: `https://sonar.4-168-192-5.sslip.io:80`
+
+Do not create public Azure inbound rules for ports 3009, 9090, 8080, or 9000.
+Prometheus's Traefik route requires the protected edge credential.
 
 Health checks:
 ```bash
@@ -74,11 +76,10 @@ psql -U <db_user> -d <db_name> -f backend/init.sql
 
 ## Deployment Target
 
-The supported and deployed target is the Azure test VM using
-`backend/docker-compose.prod.yml`. Kubernetes and Ansible are not part of this
-environment. Adding a second orchestrator on the same VM would duplicate the
-application, database, and network entrypoints rather than add missing
-services.
+The supported target is the Azure VPS: K3s runs the application, data, edge,
+Grafana, and Prometheus workloads; Docker Compose runs only SonarQube and its
+isolated PostgreSQL database; Jenkins runs as a secured systemd service. Ansible
+provisions the VPS host controls.
 
 ## Production Hardening Included
 

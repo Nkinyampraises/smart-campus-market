@@ -1,0 +1,186 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-edge-proxy
+  namespace: campustrade-observability
+data:
+  nginx.conf: |
+    pid /tmp/nginx.pid;
+    events {}
+    http {
+      access_log /dev/stdout;
+      error_log /dev/stderr warn;
+
+      map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+      }
+      map $http_x_forwarded_proto $forwarded_proto {
+        default $http_x_forwarded_proto;
+        '' $scheme;
+      }
+
+      server {
+        listen 18080;
+        server_name jenkins.4-168-192-5.sslip.io;
+
+        location = /gateway-health {
+          access_log off;
+          return 200 'ok';
+          add_header Content-Type text/plain;
+        }
+        location / {
+          proxy_pass http://127.0.0.1:8080;
+          proxy_http_version 1.1;
+          proxy_buffering off;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Host $http_host;
+          proxy_set_header X-Forwarded-Proto $forwarded_proto;
+          proxy_set_header X-Forwarded-Port $http_x_forwarded_port;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+        }
+      }
+
+      server {
+        listen 18080;
+        server_name sonar.4-168-192-5.sslip.io;
+
+        location / {
+          proxy_pass http://127.0.0.1:9000;
+          proxy_http_version 1.1;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Host $http_host;
+          proxy_set_header X-Forwarded-Proto $forwarded_proto;
+          proxy_set_header X-Forwarded-Port $http_x_forwarded_port;
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-edge-proxy
+  namespace: campustrade-observability
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app.kubernetes.io/name: platform-edge-proxy } }
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: platform-edge-proxy
+        app.kubernetes.io/part-of: campustrade
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: nginx
+          image: nginx:1.30.3-alpine3.23
+          command: [nginx, -g, "daemon off;", -c, /etc/nginx/nginx.conf]
+          ports: [{ name: proxy, containerPort: 18080 }]
+          readinessProbe: { httpGet: { path: /gateway-health, port: proxy, httpHeaders: [{ name: Host, value: jenkins.4-168-192-5.sslip.io }] }, initialDelaySeconds: 5, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /gateway-health, port: proxy, httpHeaders: [{ name: Host, value: jenkins.4-168-192-5.sslip.io }] }, initialDelaySeconds: 15, periodSeconds: 15 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 20m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          volumeMounts:
+            - { name: config, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+            - { name: cache, mountPath: /var/cache/nginx }
+      volumes:
+        - name: config
+          configMap: { name: platform-edge-proxy }
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-edge-proxy
+  namespace: campustrade-observability
+spec:
+  selector: { app.kubernetes.io/name: platform-edge-proxy }
+  ports: [{ name: proxy, port: 18080, targetPort: proxy }]
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: prometheus-auth
+  namespace: campustrade-observability
+spec:
+  basicAuth:
+    secret: prometheus-web-auth
+    realm: CampusTrade monitoring
+    removeHeader: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: grafana-public
+  namespace: campustrade-observability
+spec:
+  entryPoints: [web]
+  routes:
+    - kind: Rule
+      match: Host(`grafana.4-168-192-5.sslip.io`)
+      services: [{ name: grafana, port: 3000 }]
+  tls: { certResolver: campustrade }
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: prometheus-public
+  namespace: campustrade-observability
+spec:
+  entryPoints: [web]
+  routes:
+    - kind: Rule
+      match: Host(`prometheus.4-168-192-5.sslip.io`)
+      middlewares: [{ name: prometheus-auth }]
+      services: [{ name: prometheus, port: 9090 }]
+  tls: { certResolver: campustrade }
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: jenkins-public
+  namespace: campustrade-observability
+spec:
+  entryPoints: [web]
+  routes:
+    - kind: Rule
+      match: Host(`jenkins.4-168-192-5.sslip.io`)
+      services: [{ name: platform-edge-proxy, port: 18080 }]
+  tls: { certResolver: campustrade }
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: sonar-public
+  namespace: campustrade-observability
+spec:
+  entryPoints: [web]
+  routes:
+    - kind: Rule
+      match: Host(`sonar.4-168-192-5.sslip.io`)
+      services: [{ name: platform-edge-proxy, port: 18080 }]
+  tls: { certResolver: campustrade }

@@ -14,15 +14,16 @@ on that VPS. The workstation is only an SSH client and browser.
 | PostgreSQL | Durable marketplace data | K3s StatefulSet + PVC | Cluster-private |
 | Redis | Events, cache, and real-time coordination | K3s StatefulSet + PVC | Cluster-private |
 | Traefik | Public HTTP ingress | K3s | Port 80 |
-| Jenkins | CI/CD and remote test execution | systemd | SSH tunnel to port 8080 |
-| SonarQube | Static analysis, coverage display, and quality-gate enforcement | Docker Compose | SSH tunnel to port 9000 |
+| Jenkins | CI/CD and remote test execution | systemd | `https://jenkins.4-168-192-5.sslip.io:80` |
+| SonarQube | Static analysis, coverage display, and quality-gate enforcement | Docker Compose | `https://sonar.4-168-192-5.sslip.io:80` |
 | Sonar PostgreSQL | SonarQube analysis history | Docker Compose volume | Private Docker network |
-| Prometheus | Metrics collection and query engine | K3s | SSH tunnel to port 9090 |
-| Grafana | Authenticated dashboards over Prometheus | K3s | SSH tunnel to port 3009 |
+| Prometheus | Metrics collection and query engine | K3s | `https://prometheus.4-168-192-5.sslip.io:80` |
+| Grafana | Authenticated dashboards over Prometheus | K3s | `https://grafana.4-168-192-5.sslip.io:80` |
 | Node exporter | VPS operating-system metrics | K3s DaemonSet | Prometheus only |
 
-Prometheus has no native human account. It is bound to the VPS loopback path,
-and Grafana is the authenticated interface for normal monitoring.
+The underlying ports remain bound to the VPS loopback or cluster network. Only
+Traefik's TLS routes are public. Prometheus has no native human account, so its
+public route requires the protected Prometheus edge credential.
 
 ## 2. Connect to the VPS
 
@@ -41,29 +42,21 @@ cd /srv/campustrade/current
 
 Do not copy the private SSH key to the VPS or repository.
 
-## 3. Open the private dashboards
+## 3. Open the VPS dashboards
 
-Run this in a separate PowerShell window and leave it open:
-
-```powershell
-ssh -i "C:\Users\kongy\Downloads\campusmarket-test-key.pem" -N `
-  -L 18080:127.0.0.1:8080 `
-  -L 19000:127.0.0.1:9000 `
-  -L 19090:127.0.0.1:9090 `
-  -L 13009:127.0.0.1:3009 `
-  azureuser@4.168.192.5
-```
-
-Then open:
+No workstation service or SSH tunnel is required. Open these VPS-hosted URLs:
 
 | Interface | URL |
 |---|---|
-| Jenkins | `http://127.0.0.1:18080` |
-| SonarQube | `http://127.0.0.1:19000` |
-| Prometheus | `http://127.0.0.1:19090` |
-| Grafana | `http://127.0.0.1:13009` |
+| Jenkins | `https://jenkins.4-168-192-5.sslip.io:80` |
+| SonarQube | `https://sonar.4-168-192-5.sslip.io:80` |
+| Prometheus | `https://prometheus.4-168-192-5.sslip.io:80` |
+| Grafana | `https://grafana.4-168-192-5.sslip.io:80` |
 
-These tools are deliberately not exposed on the public network.
+Port `80` in these HTTPS URLs is intentional because the Azure perimeter does
+not currently admit port 443. Traefik still terminates TLS and obtains the
+certificates automatically. Jenkins, SonarQube, and Grafana enforce their own
+logins; Prometheus is protected by Traefik BasicAuth.
 
 ## 4. Accounts and credential retrieval
 
@@ -72,6 +65,7 @@ These tools are deliberately not exposed on the public network.
 | Jenkins | `campustrade-admin` |
 | Grafana | `campustrade-admin` |
 | SonarQube | `campustrade-admin` |
+| Prometheus | value of `PROMETHEUS_USERNAME` in the protected credential file |
 | CampusTrade administrator | `admin@campustrade.local` |
 | CampusTrade demonstration student | `demo.student@campustrade.local` |
 | VPS SSH | `azureuser` with the private key |
@@ -226,7 +220,7 @@ The normal release workflow is:
 
 1. Commit and push reviewed changes to GitHub `main`.
 2. Jenkins detects the commit within five minutes.
-3. Open Jenkins through the tunnel and inspect `campustrade-ci`.
+3. Open the VPS Jenkins URL and inspect `campustrade-ci`.
 4. Confirm `DEPLOY_TO_VPS=true` and `RUN_SONARQUBE=true`.
 5. Require every stage to be green before accepting the release.
 
@@ -256,11 +250,9 @@ sudo grep -E 'Tests:|Aggregate coverage|QUALITY GATE STATUS|Finished:' \
   "/var/lib/jenkins/jobs/campustrade-ci/builds/$successful/log"
 ```
 
-The verified 14 July 2026 release is Jenkins build 24, commit
-`64bb3654ed23172b8dfdddac6db69a68ffdad6a1`, immutable image tag
-`64bb3654ed23`: 310 tests passed, all four coverage measures exceeded 80%, the
-SonarQube gate passed with zero open vulnerabilities, all ten images passed the
-Trivy critical-vulnerability gate, and all 11 Prometheus targets were up.
+Use the latest successful Jenkins build as the release authority. Its Git SHA,
+immutable image tag, SonarQube quality gate, Trivy results, and evidence archive
+must all agree before the release is accepted.
 
 ## 10. Use SonarQube correctly
 
@@ -269,9 +261,9 @@ the Jest test runner. Jenkins executes Jest remotely on the VPS and SonarQube
 supplies the integrated quality interface and release gate. No production
 qualification depends on tests run on the workstation.
 
-After opening the tunnel:
+Using the VPS-hosted SonarQube URL:
 
-1. Sign in at `http://127.0.0.1:19000`.
+1. Sign in at `https://sonar.4-168-192-5.sslip.io:80`.
 2. Open the `CampusTrade` project (`campusmarket` project key).
 3. Review **Overview**, **Issues**, **Security Hotspots**, **Measures**, and
    **Activity**.
@@ -334,27 +326,20 @@ curl -fsS http://127.0.0.1:9090/api/v1/targets | \
   jq -r '.data.activeTargets[] | [.labels.job,.health,.scrapeUrl] | @tsv'
 ```
 
-Grafana's authenticated pages, API, dashboards, and metrics remain private on
-the SSH tunnel. Only the versioned open-source frontend files under
-`/grafana-oss/13.0.2/public/` are served by the public application endpoint.
-Those files contain no credentials or monitoring data and use immutable browser
-caching. The `:80` on the HTTPS asset URL is intentional: the Azure perimeter
-currently permits public port 80, and Traefik terminates TLS for this one static
-route on that entry point with an automatically renewed certificate. Confirm
-both the fast asset route and the private-data boundary with:
+Grafana and Prometheus are hosted on the VPS through distinct TLS hostnames.
+Grafana serves its own application files from its configured public root URL;
+Prometheus requires HTTP Basic authentication at Traefik. Confirm both routes
+without exposing credentials in shell history:
 
 ```bash
-curl -fsSI https://4-168-192-5.sslip.io:80/grafana-oss/13.0.2/public/build/img/fav32.png
-curl -o /dev/null -sS -w '%{http_code}\n' \
-  https://4-168-192-5.sslip.io:80/grafana-oss/13.0.2/public/api/health
-curl -fsS http://127.0.0.1:3009/login | \
-  grep -F 'https://4-168-192-5.sslip.io:80/grafana-oss/13.0.2/public/'
+curl -fsS https://grafana.4-168-192-5.sslip.io:80/api/health
+sudo bash -c 'source /srv/campustrade/shared/operator-credentials.env; \
+  curl -fsS -u "$PROMETHEUS_USERNAME:$PROMETHEUS_PASSWORD" \
+  https://prometheus.4-168-192-5.sslip.io:80/-/ready'
 ```
 
-The expected statuses are `200` for the static image and `404` for the API-like
-path. The final command proves that Grafana is emitting the configured asset
-prefix. If the login shell opens but stays blank, check these three commands
-before restarting Grafana; this distinguishes asset delivery from server load.
+Both commands must return successfully. The Grafana health response must report
+`database: ok`, and Prometheus must return `Prometheus Server is Ready`.
 
 ## 12. Operate PostgreSQL and Redis safely
 
@@ -441,27 +426,26 @@ The Jenkins account must remain in the `docker` and `k3s` groups.
 Open the SonarQube project and fix the reported issue. Do not disable
 `RUN_SONARQUBE` or weaken the gate to force a deployment.
 
-### Dashboard tunnel does not open
+### A VPS dashboard does not open
 
-Confirm the SSH process is still running, then check the VPS endpoints:
+Check the edge routes and their private upstreams directly on the VPS:
 
 ```bash
 curl -I http://127.0.0.1:8080/login
 curl http://127.0.0.1:3009/api/health
 curl http://127.0.0.1:9090/-/ready
 curl http://127.0.0.1:9000/api/system/status
+sudo k3s kubectl -n campustrade-observability get ingressroute,pods,svc
 ```
 
-If Grafana alone shows "failed to load its application files", confirm that the
-login HTML references
-`https://4-168-192-5.sslip.io:80/grafana-oss/13.0.2/public/` and that
-the public static image check in section 11 returns immediately. Grafana does
-not run under a reverse-proxy subpath in this deployment; changing `root_url` or
-`serve_from_sub_path` is not the appropriate repair.
+If Grafana alone shows "failed to load its application files", verify
+`GF_SERVER_ROOT_URL` on the Grafana deployment and request the public
+`/api/health` URL. Grafana uses its own VPS hostname, not a subpath.
 
 ## 15. Security rules
 
-- Keep Jenkins, Grafana, Prometheus, and SonarQube behind SSH tunnels.
+- Keep ports 8080, 9000, 9090, and 3009 private; publish only through Traefik.
+- Keep native authentication enabled and the Prometheus BasicAuth middleware attached.
 - Do not commit `.env`, tokens, passwords, private keys, kubeconfig, or backups.
 - Do not print secret files in Jenkins logs.
 - Do not use `docker compose down -v` or delete K3s PVCs in routine work.

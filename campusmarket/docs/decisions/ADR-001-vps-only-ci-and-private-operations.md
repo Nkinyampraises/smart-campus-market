@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by ADR-003
 
 ## Date
 
@@ -52,4 +52,3 @@ Passwords are independently generated for each human account.
 - Dashboard access requires an SSH tunnel.
 - The VPS needs enough capacity for K3s, Jenkins, SonarQube, tests, and builds.
 - Operational recovery is documented in the platform operations runbook.
-

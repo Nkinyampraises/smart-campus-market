@@ -83,12 +83,26 @@ grep -Fq 'CNI-HOSTPORT-DNAT' "$scripts_dir/rebuild-vps-from-scratch.sh"
 grep -Fq 'ip link delete flannel.1' "$scripts_dir/rebuild-vps-from-scratch.sh"
 grep -Fq 'docker container inspect campusmarket-postgres-1' "$root_dir/Jenkinsfile"
 grep -Fq 'native clean K3s deployment' "$root_dir/Jenkinsfile"
+grep -Fq 'kind: IngressRoute' "$root_dir/k8s/base/platform-access.yaml"
+grep -Fq 'hostNetwork: true' "$root_dir/k8s/base/platform-access.yaml"
+grep -Fq 'secret: prometheus-web-auth' "$root_dir/k8s/base/platform-access.yaml"
+grep -Fq 'public VPS Grafana route' "$scripts_dir/smoke-test-running.sh"
+grep -Fq 'public VPS Jenkins route' "$scripts_dir/smoke-test-running.sh"
+if grep -Eq 'localhost:(8080|9000|9090|3009)|SSH tunnel to port' \
+  "$root_dir/README.md" "$root_dir/backend/OPERATIONS.md" \
+  "$root_dir/docs/operations/PLATFORM_OPERATIONS_RUNBOOK.md"
+then
+  echo 'Operator documentation regressed to workstation dashboard access.' >&2
+  exit 1
+fi
 
 for script in \
   generate-production-env.sh bootstrap-jenkins.sh rebuild-vps-from-scratch.sh \
-  seed-production-data.sh verify-production-seed.sh
+  seed-production-data.sh verify-production-seed.sh smoke-test-running.sh \
+  provision-operator-accounts.sh
 do
   bash -n "$scripts_dir/$script"
 done
+bash -n "$root_dir/k8s/scripts/deploy.sh"
 
 echo 'Platform rebuild automation tests passed.'

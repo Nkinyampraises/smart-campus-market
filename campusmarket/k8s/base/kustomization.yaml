@@ -9,3 +9,4 @@ resources:
   - applications.yaml
   - edge.yaml
   - monitoring.yaml
+  - platform-access.yaml

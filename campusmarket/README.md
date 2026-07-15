@@ -21,12 +21,16 @@ A full-stack microservices application for campus-based buying and selling.
 - CampusTrade: `http://4.168.192.5`
 - API health: `http://4.168.192.5/health`
 - API documentation: `http://4.168.192.5/api/docs`
+- Jenkins: `https://jenkins.4-168-192-5.sslip.io:80`
+- SonarQube: `https://sonar.4-168-192-5.sslip.io:80`
+- Prometheus: `https://prometheus.4-168-192-5.sslip.io:80`
+- Grafana: `https://grafana.4-168-192-5.sslip.io:80`
 
 The deployed application, CI tests, SonarQube analysis, container builds,
 monitoring, and databases all run on the VPS. Use the workstation only for Git,
 SSH, and a browser. Follow the
 [production operations runbook](docs/operations/PLATFORM_OPERATIONS_RUNBOOK.md)
-for account retrieval, private dashboard tunnels, health checks, deployments,
+for account retrieval, VPS dashboard access, health checks, deployments,
 backups, and exact stop/start/restart commands.
 
 ## Development

@@ -82,16 +82,15 @@ claims that a real marketplace record exists for those identifiers.
 | `dashboards/grafana-dashboards.png` | Live CampusTrade and VPS metrics in Grafana |
 | `dashboards/prometheus-targets.png` | Prometheus target health |
 
-Jenkins, SonarQube, Grafana, and Prometheus bind to VPS loopback. Capture and
-normal operator access use an SSH tunnel as documented in
-`../../operations/PLATFORM_OPERATIONS_RUNBOOK.md`; these tools are not exposed
-directly to the Internet.
+Jenkins, SonarQube, Grafana, and Prometheus use private VPS upstreams. Capture
+and normal operator access use their authenticated Traefik TLS routes as
+documented in `../../operations/PLATFORM_OPERATIONS_RUNBOOK.md`.
 
 ## Re-capture acceptance rules
 
 Before replacing evidence, verify all of the following:
 
-1. The source URL is the public VPS or an SSH tunnel to a VPS-only dashboard.
+1. The source URL is the public VPS or an authenticated VPS dashboard route.
 2. The viewport matches the collection profile above.
 3. Authenticated screenshots use the dedicated demonstration or administrator
    account and contain no credential fields, tokens, or secret values.

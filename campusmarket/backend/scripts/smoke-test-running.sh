@@ -3,10 +3,20 @@ set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://127.0.0.1}"
 GRAFANA_URL="${GRAFANA_URL:-http://127.0.0.1:3009}"
-GRAFANA_CDN_URL="${GRAFANA_CDN_URL:-https://4-168-192-5.sslip.io:80}"
-GRAFANA_VERSION="${GRAFANA_VERSION:-13.0.2}"
-MAX_RETRIES="${MAX_RETRIES:-30}"
+PUBLIC_GRAFANA_URL="${PUBLIC_GRAFANA_URL:-https://grafana.4-168-192-5.sslip.io:80}"
+PUBLIC_PROMETHEUS_URL="${PUBLIC_PROMETHEUS_URL:-https://prometheus.4-168-192-5.sslip.io:80}"
+PUBLIC_JENKINS_URL="${PUBLIC_JENKINS_URL:-https://jenkins.4-168-192-5.sslip.io:80}"
+PUBLIC_SONAR_URL="${PUBLIC_SONAR_URL:-https://sonar.4-168-192-5.sslip.io:80}"
+MAX_RETRIES="${MAX_RETRIES:-60}"
 RETRY_DELAY="${RETRY_DELAY:-3}"
+
+env_file="${ENV_FILE:-backend/.env}"
+read_env_value() {
+  local key="$1"
+  sed -n "s/^${key}=//p" "$env_file" | tail -1
+}
+prometheus_username="${PROMETHEUS_USERNAME:-$(read_env_value GRAFANA_USER)}"
+prometheus_password="${PROMETHEUS_PASSWORD:-$(read_env_value GRAFANA_PASS)}"
 
 check_url() {
   local url="$1"
@@ -83,13 +93,31 @@ check_contains() {
   return 1
 }
 
-grafana_asset_prefix="${GRAFANA_CDN_URL}/grafana-oss/${GRAFANA_VERSION}/public"
+check_url_with_basic_auth() {
+  local url="$1"
+  local name="$2"
+  local attempt
+
+  for ((attempt = 1; attempt <= MAX_RETRIES; attempt++)); do
+    if curl --fail --silent --show-error \
+      --user "$prometheus_username:$prometheus_password" "$url" >/dev/null; then
+      echo "Smoke test passed: ${name}"
+      return 0
+    fi
+    sleep "$RETRY_DELAY"
+  done
+
+  echo "Smoke test failed: ${name} (${url})" >&2
+  return 1
+}
 
 check_url "${BASE_URL}/" "frontend"
 check_url "${BASE_URL}/health" "API gateway health"
 check_url "${BASE_URL}/api/admin/public-stats" "public statistics API"
-check_content_type "${grafana_asset_prefix}/build/img/fav32.png" "image/png" "public Grafana static asset"
-check_status "${grafana_asset_prefix}/api/health" "404" "Grafana API isolation from public asset route"
-check_contains "${GRAFANA_URL}/login" "${grafana_asset_prefix}/" "Grafana CDN configuration"
+check_url "${GRAFANA_URL}/api/health" "VPS Grafana health"
+check_url "${PUBLIC_GRAFANA_URL}/api/health" "public VPS Grafana route"
+check_url_with_basic_auth "${PUBLIC_PROMETHEUS_URL}/-/ready" "authenticated public VPS Prometheus route"
+check_url "${PUBLIC_JENKINS_URL}/login" "public VPS Jenkins route"
+check_url "${PUBLIC_SONAR_URL}/api/system/status" "public VPS SonarQube route"
 
 echo "All running-stack smoke tests passed."

@@ -55,21 +55,28 @@ ensure_credential SEED_USER_3_PASSWORD "$(new_password)"
 ensure_credential SEED_USER_4_EMAIL 'eric.nji@campustrade.local'
 ensure_credential SEED_USER_4_PASSWORD "$(new_password)"
 
-if [[ "${CREDENTIALS_ONLY:-false}" == true ]]; then
-  echo "Operator credentials generated at $credential_file (values suppressed)."
-  exit 0
-fi
-
 # shellcheck disable=SC1090
 source "$credential_file"
 # shellcheck disable=SC1090
 source "$production_env"
 
+PROMETHEUS_USERNAME="${PROMETHEUS_USERNAME:-$GRAFANA_USER}"
+PROMETHEUS_PASSWORD="${PROMETHEUS_PASSWORD:-$GRAFANA_PASS}"
+ensure_credential PROMETHEUS_USERNAME "$PROMETHEUS_USERNAME"
+ensure_credential PROMETHEUS_PASSWORD "$PROMETHEUS_PASSWORD"
+
+if [[ "${CREDENTIALS_ONLY:-false}" == true ]]; then
+  chmod 0600 "$credential_file"
+  chown root:root "$credential_file"
+  echo "Operator credentials generated at $credential_file (values suppressed)."
+  exit 0
+fi
+
 required=(
   JENKINS_USERNAME JENKINS_PASSWORD GRAFANA_USERNAME GRAFANA_PASSWORD
   SONAR_USERNAME SONAR_PASSWORD CAMPUSTRADE_ADMIN_EMAIL
   CAMPUSTRADE_ADMIN_PASSWORD CAMPUSTRADE_DEMO_EMAIL CAMPUSTRADE_DEMO_PASSWORD
-  GRAFANA_USER GRAFANA_PASS DB_USER DB_NAME
+  PROMETHEUS_USERNAME PROMETHEUS_PASSWORD GRAFANA_USER GRAFANA_PASS DB_USER DB_NAME
 )
 for variable in "${required[@]}"; do
   [[ -n "${!variable:-}" ]] || { echo "Required variable is empty: $variable" >&2; exit 1; }

@@ -42,8 +42,8 @@ analysis history.
 
 ## One-time secure bootstrap
 
-1. Open the SSH tunnel documented in `OPERATIONS.md` and browse to
-   <http://localhost:9000>.
+1. Browse to the VPS-hosted interface at
+   <https://sonar.4-168-192-5.sslip.io:80>.
 2. Sign in with the initial SonarQube credentials shown by the product and
    immediately replace the initial password.
 3. Create the `campusmarket` project using the project key already declared in

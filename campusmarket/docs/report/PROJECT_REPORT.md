@@ -129,7 +129,7 @@ CampusTrade adds domain-specific intelligence without making automation the fina
 
 ### 4.6 Trade-offs
 
-Microservices increase process, deployment, and observability complexity but make capability boundaries and independent testing visible. A shared database is pragmatic on one VPS but does not offer full storage autonomy; future scale should evolve toward schema/database ownership. Redis pub/sub is fast and simple but not durable; critical workflows should move to a persistent broker or transactional outbox. Single-node K3s demonstrates orchestration and rolling updates but cannot survive full VM loss. Loopback-only administration materially reduces exposure but requires an SSH tunnel.
+Microservices increase process, deployment, and observability complexity but make capability boundaries and independent testing visible. A shared database is pragmatic on one VPS but does not offer full storage autonomy; future scale should evolve toward schema/database ownership. Redis pub/sub is fast and simple but not durable; critical workflows should move to a persistent broker or transactional outbox. Single-node K3s demonstrates orchestration and rolling updates but cannot survive full VM loss. Private administration upstreams reduce exposure while authenticated VPS TLS routes avoid workstation runtime dependencies.
 
 ### 4.7 Evidence
 

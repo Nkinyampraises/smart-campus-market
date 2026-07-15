@@ -85,7 +85,7 @@ dashboard instead of being hidden from examiners.
 - Error handlers return generic messages instead of database or credential details.
 - SQL access uses parameter arrays rather than concatenating user values.
 - Production containers run without privilege escalation; application containers use numeric non-root identities.
-- Administrative tools bind to VPS loopback and are reached through SSH tunnelling.
+- Administrative upstreams stay private and are reached through authenticated VPS TLS routes.
 
 ## Residual risks
 

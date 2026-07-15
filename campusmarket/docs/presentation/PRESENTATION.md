@@ -75,7 +75,7 @@ Client → Traefik → Frontend / API Gateway
 - Numeric non-root application containers; privilege escalation disabled
 - Baseline Pod Security for the application namespace
 - Encrypted Jenkins credentials and protected VPS environment files
-- Admin tools bound to VPS loopback and reached through SSH tunnelling
+- Admin upstreams private and published through authenticated VPS TLS routes
 
 # Ansible and reproducibility
 

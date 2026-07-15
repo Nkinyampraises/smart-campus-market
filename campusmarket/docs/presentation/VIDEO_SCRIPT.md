@@ -2,7 +2,7 @@
 
 ## Recording setup
 
-Open the public application and an SSH tunnel for Jenkins, Grafana, Prometheus, and SonarQube. Use a 1920×1080 recording, keep browser zoom at 100%, hide credentials, and show the current production URLs rather than local development servers.
+Open the public application and the VPS-hosted Jenkins, Grafana, Prometheus, and SonarQube URLs. Use a 1920×1080 recording, keep browser zoom at 100%, hide credentials, and show the production URLs rather than local development servers.
 
 ## 0:00–0:35 — Problem and outcome
 
@@ -32,7 +32,7 @@ Open the latest Jenkins build and stage graph. Walk through checkout, system inf
 
 ## 4:35–5:25 — Monitoring and code quality
 
-Open Grafana and show the overview dashboard. Open Prometheus targets and show 11/11 `UP`; briefly show alert rules. Open SonarQube and show project analysis/quality status. Mention that all administrative tools are bound to VPS loopback and reached through an SSH tunnel.
+Open Grafana and show the overview dashboard. Open Prometheus targets and show 11/11 `UP`; briefly show alert rules. Open SonarQube and show project analysis/quality status. Mention that private upstream ports are published only through authenticated VPS TLS routes.
 
 ## 5:25–6:10 — Testing
 
@@ -53,4 +53,4 @@ End on the production home screen or the Kubernetes/Grafana health overview.
 - No passwords, tokens, `.env` contents, or private keys appear in the recording.
 - Browser password managers and notification previews are hidden.
 - Jenkins console sections containing credential binding are not expanded.
-- Only the public IP, repository URL, and documented tunnel endpoints are shown.
+- Only the public IP, repository URL, and documented VPS endpoints are shown.

@@ -7,23 +7,15 @@
 - API documentation: `http://4.168.192.5/api/docs`
 - OpenAPI contract: `http://4.168.192.5/api/docs/openapi.yaml`
 
-The administrative services are deployed on the VPS but intentionally bind to loopback rather than the public network.
+Administrative upstream ports remain private on the VPS, while Traefik exposes
+the authenticated TLS interfaces:
 
-```bash
-ssh -i campusmarket-test-key.pem \
-  -L 8080:127.0.0.1:8080 \
-  -L 3009:127.0.0.1:3009 \
-  -L 9090:127.0.0.1:9090 \
-  -L 9000:127.0.0.1:9000 \
-  azureuser@4.168.192.5
-```
+- Jenkins: `https://jenkins.4-168-192-5.sslip.io:80`
+- Grafana: `https://grafana.4-168-192-5.sslip.io:80`
+- Prometheus: `https://prometheus.4-168-192-5.sslip.io:80`
+- SonarQube: `https://sonar.4-168-192-5.sslip.io:80`
 
-After the tunnel is open:
-
-- Jenkins: `http://127.0.0.1:8080`
-- Grafana: `http://127.0.0.1:3009`
-- Prometheus: `http://127.0.0.1:9090`
-- SonarQube: `http://127.0.0.1:9000`
+No dashboard process or port-forward runs on the workstation.
 
 ## Verified VPS inventory
 

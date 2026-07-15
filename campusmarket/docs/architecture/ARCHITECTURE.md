@@ -72,9 +72,10 @@ flowchart TB
   end
   GitHub --> Jenkins
   Users --> Ingress
-  Operator -. SSH tunnel .-> Jenkins
-  Operator -. SSH tunnel .-> Monitor
-  Operator -. SSH tunnel .-> Sonar
+  Operator -->|VPS TLS hostname| Ingress
+  Ingress --> Jenkins
+  Ingress --> Monitor
+  Ingress --> Sonar
 ```
 
 ## Module view

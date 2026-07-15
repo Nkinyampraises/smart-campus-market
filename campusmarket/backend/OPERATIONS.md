@@ -1,27 +1,17 @@
 # CampusTrade Test VM Operations
 
-## Securely open Jenkins, Grafana, Prometheus, and SonarQube
+## Open Jenkins, Grafana, Prometheus, and SonarQube on the VPS
 
-Keep this SSH command running in a PowerShell window on your computer:
+No workstation service or SSH tunnel is required:
 
-```powershell
-ssh -i "C:\path\to\your-private-key.pem" `
-  -L 8080:127.0.0.1:8080 `
-  -L 3009:127.0.0.1:3009 `
-  -L 9090:127.0.0.1:9090 `
-  -L 9000:127.0.0.1:9000 `
-  azureuser@<vm-public-ip>
-```
+- Jenkins: <https://jenkins.4-168-192-5.sslip.io:80>
+- Grafana: <https://grafana.4-168-192-5.sslip.io:80>
+- Prometheus: <https://prometheus.4-168-192-5.sslip.io:80>
+- SonarQube: <https://sonar.4-168-192-5.sslip.io:80>
 
-Then open these local addresses:
-
-- Jenkins: <http://localhost:8080>
-- Grafana: <http://localhost:3009>
-- Prometheus: <http://localhost:9090>
-- SonarQube: <http://localhost:9000>
-
-The traffic is encrypted inside SSH. Azure inbound rules are not required for
-ports 8080, 3009, 9090, or 9000.
+Traefik terminates TLS on the VPS. The Azure perimeter does not currently
+admit port 443, so HTTPS intentionally uses public port 80 while upstream ports
+8080, 3009, 9090, and 9000 remain private.
 
 ## Jenkins operations view
 

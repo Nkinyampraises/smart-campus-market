@@ -20,6 +20,20 @@ $kubectl -n "$namespace" create secret generic campustrade-secrets \
   --from-env-file="$env_file" --dry-run=client -o yaml | $kubectl apply -f -
 $kubectl -n "$monitoring_namespace" create secret generic campustrade-secrets \
   --from-env-file="$env_file" --dry-run=client -o yaml | $kubectl apply -f -
+
+# Prometheus has no native interactive authentication. Reuse the protected
+# Grafana bootstrap credential at Traefik without ever writing it to source.
+set -a
+# shellcheck disable=SC1090
+source "$env_file"
+set +a
+: "${GRAFANA_USER:?GRAFANA_USER is required for Prometheus edge authentication}"
+: "${GRAFANA_PASS:?GRAFANA_PASS is required for Prometheus edge authentication}"
+prometheus_users="$(mktemp)"
+trap 'rm -f "$prometheus_users"' EXIT
+printf '%s:%s\n' "$GRAFANA_USER" "$(openssl passwd -apr1 "$GRAFANA_PASS")" >"$prometheus_users"
+$kubectl -n "$monitoring_namespace" create secret generic prometheus-web-auth \
+  --from-file=users="$prometheus_users" --dry-run=client -o yaml | $kubectl apply -f -
 $kubectl -n "$namespace" create configmap campustrade-db-init \
   --from-file=init.sql=backend/init.sql --dry-run=client -o yaml | $kubectl apply -f -
 $kubectl -n "$monitoring_namespace" create configmap prometheus-config \
@@ -57,6 +71,7 @@ for service in "${services[@]}"; do
 done
 $kubectl -n "$monitoring_namespace" rollout status deployment/prometheus --timeout=300s
 $kubectl -n "$monitoring_namespace" rollout status deployment/grafana --timeout=300s
+$kubectl -n "$monitoring_namespace" rollout status deployment/platform-edge-proxy --timeout=180s
 $kubectl -n "$monitoring_namespace" rollout status daemonset/node-exporter --timeout=180s
 
 $kubectl -n "$namespace" delete deployment,service,pvc prometheus grafana node-exporter --ignore-not-found

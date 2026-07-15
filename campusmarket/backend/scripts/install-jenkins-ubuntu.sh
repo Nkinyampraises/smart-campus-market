@@ -40,11 +40,11 @@ $SUDO systemctl daemon-reload
 $SUDO systemctl enable jenkins
 if [[ "${START_JENKINS:-true}" == true ]]; then
   $SUDO systemctl restart jenkins
-  echo "Jenkins is running on the VM loopback interface at http://127.0.0.1:8080."
+  echo "Jenkins is running on the VPS loopback interface behind the Traefik edge proxy."
 else
   $SUDO systemctl stop jenkins
   echo "Jenkins is installed and stopped pending its secured bootstrap."
 fi
 
 echo "The host kernel limits required by SonarQube have been applied."
-echo "Use an SSH tunnel from your computer; do not open Azure port 8080."
+echo "Keep port 8080 private; publish Jenkins only through the authenticated VPS edge route."
