@@ -79,6 +79,8 @@ grep -Fq '/var/lib/kubelet/*' "$scripts_dir/rebuild-vps-from-scratch.sh"
 grep -Fq '/run/k3s/*' "$scripts_dir/rebuild-vps-from-scratch.sh"
 grep -Fq 'containerd.sock' "$scripts_dir/rebuild-vps-from-scratch.sh"
 grep -Fq 'systemctl restart containerd docker' "$scripts_dir/rebuild-vps-from-scratch.sh"
+grep -Fq 'docker container inspect campusmarket-postgres-1' "$root_dir/Jenkinsfile"
+grep -Fq 'native clean K3s deployment' "$root_dir/Jenkinsfile"
 
 for script in \
   generate-production-env.sh bootstrap-jenkins.sh rebuild-vps-from-scratch.sh \

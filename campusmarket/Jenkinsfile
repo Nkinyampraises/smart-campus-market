@@ -265,8 +265,14 @@ pipeline {
 
               cutover_marker="$DEPLOY_ROOT/k3s-cutover-complete"
               if [ ! -f "$cutover_marker" ]; then
-                IMAGE_TAG="$release_tag" ENV_FILE=backend/.env \
-                  bash k8s/scripts/migrate-and-cutover.sh
+                if docker container inspect campusmarket-postgres-1 >/dev/null 2>&1; then
+                  IMAGE_TAG="$release_tag" ENV_FILE=backend/.env \
+                    bash k8s/scripts/migrate-and-cutover.sh
+                else
+                  echo 'No legacy Compose database found; performing a native clean K3s deployment.'
+                  IMAGE_TAG="$release_tag" ENV_FILE=backend/.env \
+                    bash k8s/scripts/deploy.sh full
+                fi
                 date -u +'%Y-%m-%dT%H:%M:%SZ' >"$cutover_marker"
               else
                 IMAGE_TAG="$release_tag" ENV_FILE=backend/.env \
