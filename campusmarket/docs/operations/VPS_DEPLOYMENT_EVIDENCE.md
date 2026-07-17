@@ -115,17 +115,29 @@ in `../evidence/screenshots/README.md`.
 ## Ansible evidence commands
 
 ```bash
+bash /srv/campustrade/current/backend/scripts/sync-ansible-source.sh
 cd /home/azureuser/campusmarket
-ANSIBLE_CONFIG=ansible/ansible.cfg \
-  ansible-playbook ansible/playbooks/provision-vps.yml
-
-ANSIBLE_CONFIG=ansible/ansible.cfg \
-  ansible-playbook ansible/playbooks/deploy-platform.yml \
-  -e deployment_mode=full \
-  -e image_tag=<verified-commit>
+verified_commit="$(cat .source-commit)"
+printf 'Source commit: %s\n' "$verified_commit"
 ```
 
-The provisioning play completed with 18 tasks, zero failures, and a Ready K3s node. The deployment play synchronizes reviewed source, preserves the protected environment, builds/imports images, applies the requested deployment mode, and prints resource status.
+Before either playbook is run, `verified_commit` must match the Git revision of
+the latest successful Jenkins build, and no Jenkins build may be active. Only
+after both checks pass, run:
+
+```bash
+export ANSIBLE_CONFIG="$PWD/ansible/ansible.cfg"
+ansible-playbook ansible/playbooks/provision-vps.yml
+
+ansible-playbook ansible/playbooks/deploy-platform.yml \
+  -e deployment_mode=full \
+  -e image_tag="$verified_commit"
+```
+
+The recorded provisioning play completed with 18 tasks, zero failures, and a
+Ready K3s node. The deployment play requires the canonical protected
+environment, links it into the release, builds/imports images, applies the
+requested deployment mode, and prints resource status.
 
 ## Rollback
 

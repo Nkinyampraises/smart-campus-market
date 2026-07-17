@@ -28,10 +28,11 @@ A full-stack microservices application for campus-based buying and selling.
 
 The deployed application, CI tests, SonarQube analysis, container builds,
 monitoring, and databases all run on the VPS. Use the workstation only for Git,
-SSH, and a browser. Follow the
+SSH, and a browser. Start with the
+[beginner evaluation command sheet](docs/operations/BEGINNER_EVALUATION_COMMANDS.md)
+for exact locations and one-line commands. Use the
 [production operations runbook](docs/operations/PLATFORM_OPERATIONS_RUNBOOK.md)
-for account retrieval, VPS dashboard access, health checks, deployments,
-backups, and exact stop/start/restart commands.
+for deeper troubleshooting and backup procedures.
 
 ## Development
 

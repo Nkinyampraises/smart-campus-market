@@ -71,6 +71,70 @@ EXPECTED_PUBLIC_IP=203.0.113.10 PUBLIC_IP_OVERRIDE=203.0.113.10 \
 DRY_RUN=true bash "$scripts_dir/rebuild-vps-from-scratch.sh" >"$work_dir/rebuild-dry-run.log"
 grep -q 'Dry run passed' "$work_dir/rebuild-dry-run.log"
 
+sync_repo="$work_dir/sync-repo"
+sync_target="$work_dir/sync-target"
+canonical_env="$work_dir/canonical-backend.env"
+mkdir -p \
+  "$sync_repo/campusmarket/ansible/playbooks" \
+  "$sync_repo/campusmarket/backend" \
+  "$sync_target/backend"
+git init --quiet --initial-branch=main "$sync_repo"
+printf 'pipeline {}\n' >"$sync_repo/campusmarket/Jenkinsfile"
+printf '%s\n' '---' >"$sync_repo/campusmarket/ansible/playbooks/provision-vps.yml"
+printf '%s\n' '---' >"$sync_repo/campusmarket/ansible/playbooks/deploy-platform.yml"
+printf 'services: {}\n' >"$sync_repo/campusmarket/backend/docker-compose.prod.yml"
+printf 'new source\n' >"$sync_repo/campusmarket/source-marker.txt"
+git -C "$sync_repo" add .
+git -C "$sync_repo" \
+  -c user.name='CampusTrade Test' \
+  -c user.email='test@campustrade.local' \
+  commit --quiet -m 'Create source fixture'
+expected_sync_commit="$(git -C "$sync_repo" rev-parse --short=12 HEAD)"
+printf 'canonical=true\n' >"$canonical_env"
+printf 'stale=true\n' >"$sync_target/backend/.env"
+printf 'remove me\n' >"$sync_target/stale.txt"
+
+ALLOW_TEST_TARGET=true \
+REPOSITORY="file://$sync_repo" \
+TARGET="$sync_target" \
+CANONICAL_ENV="$canonical_env" \
+  bash "$scripts_dir/sync-ansible-source.sh"
+
+[[ -L "$sync_target/backend/.env" ]]
+[[ "$(readlink -f "$sync_target/backend/.env")" == "$(readlink -f "$canonical_env")" ]]
+grep -qx 'canonical=true' "$sync_target/backend/.env"
+if grep -q 'stale=true' "$sync_target/backend/.env"; then
+  echo 'Source synchronization retained the stale environment.' >&2
+  exit 1
+fi
+grep -qx 'new source' "$sync_target/source-marker.txt"
+grep -qx "$expected_sync_commit" "$sync_target/.source-commit"
+[[ ! -e "$sync_target/stale.txt" ]]
+if ALLOW_TEST_TARGET=true \
+  REPOSITORY="file://$sync_repo" \
+  TARGET="$root_dir/forbidden-sync-target" \
+  bash "$scripts_dir/sync-ansible-source.sh" >/dev/null 2>&1
+then
+  echo 'Source synchronization accepted a non-temporary test target.' >&2
+  exit 1
+fi
+if ALLOW_TEST_TARGET=true \
+  REPOSITORY="file://$sync_repo" \
+  TARGET=/home/azureuser/campusmarket \
+  bash "$scripts_dir/sync-ansible-source.sh" >/dev/null 2>&1
+then
+  echo 'Test mode accepted the production source target.' >&2
+  exit 1
+fi
+
+deploy_playbook="$root_dir/ansible/playbooks/deploy-platform.yml"
+if grep -Fq 'src: "{{ deployment_source }}/backend/.env"' "$deploy_playbook"; then
+  echo 'Deployment playbook still copies the source environment over production.' >&2
+  exit 1
+fi
+grep -Fq 'path: "{{ deployment_root }}/shared/backend.env"' "$deploy_playbook"
+grep -Fq 'src: "{{ deployment_root }}/shared/backend.env"' "$deploy_playbook"
+
 # A retry after a partial cleanup must retain the already preserved external
 # configuration rather than replacing it with an empty file.
 grep -Fq 'elif [[ ! -f' "$scripts_dir/rebuild-vps-from-scratch.sh"
@@ -103,7 +167,7 @@ fi
 for script in \
   generate-production-env.sh bootstrap-jenkins.sh rebuild-vps-from-scratch.sh \
   seed-production-data.sh verify-production-seed.sh smoke-test-running.sh \
-  provision-operator-accounts.sh
+  provision-operator-accounts.sh sync-ansible-source.sh
 do
   bash -n "$scripts_dir/$script"
 done

@@ -88,6 +88,10 @@ pipeline {
               }
               END { exit protected_hostport_deployments == 2 ? 0 : 1 }
             ' "$rendered_manifest"
+            ANSIBLE_CONFIG="$PWD/ansible/ansible.cfg" \
+              ansible-playbook --syntax-check ansible/playbooks/provision-vps.yml
+            ANSIBLE_CONFIG="$PWD/ansible/ansible.cfg" \
+              ansible-playbook --syntax-check ansible/playbooks/deploy-platform.yml
             bash backend/scripts/test-platform-rebuild.sh
           '''
         }

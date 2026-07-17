@@ -38,15 +38,28 @@
         mode: g+rwX
         recurse: true
 
-    - name: Preserve protected production environment
-      ansible.builtin.copy:
-        src: "{{ deployment_source }}/backend/.env"
-        dest: "{{ deployment_root }}/shared/backend.env"
-        remote_src: true
+    - name: Inspect canonical protected production environment
+      ansible.builtin.stat:
+        path: "{{ deployment_root }}/shared/backend.env"
+        follow: true
+      register: protected_environment
+
+    - name: Require canonical protected production environment
+      ansible.builtin.assert:
+        that:
+          - protected_environment.stat.exists
+          - protected_environment.stat.isreg | default(false)
+        fail_msg: >-
+          The canonical protected environment is missing from
+          {{ deployment_root }}/shared/backend.env.
+
+    - name: Protect canonical production environment permissions
+      ansible.builtin.file:
+        path: "{{ deployment_root }}/shared/backend.env"
+        state: file
         owner: "{{ deployment_user }}"
         group: "{{ deployment_group }}"
         mode: '0640'
-      no_log: true
 
     - name: Link protected environment into release
       ansible.builtin.file:
