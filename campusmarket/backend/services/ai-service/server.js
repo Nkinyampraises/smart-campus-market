@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const Anthropic = require('@anthropic-ai/sdk');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const { createCorsOptions } = require('../../shared/corsOptions');
@@ -14,7 +15,53 @@ const { initRedis, closeRedis, getRedisClient, publishEvent, subscribeToEvents, 
 const app = express();
 const PORT = process.env.PORT || 3006;
 
-const CONDITION_FACTORS = { new: 1.0, 'like new': 0.9, 'excellent condition': 0.85, 'good condition': 0.7, used: 0.7, old: 0.4 };
+const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-5';
+const CLAUDE_TIMEOUT_MS = 12000;
+const CLAUDE_MAX_RETRIES = 1;
+const CLAUDE_MAX_TOKENS = 120;
+const MAX_EXPLANATION_LENGTH = 320;
+const MIN_COMPARABLE_SALES = 3;
+const CLAUDE_QUOTA_LIMIT = 10;
+const CLAUDE_QUOTA_WINDOW_SECONDS = 15 * 60;
+const CLAUDE_QUOTA_SCRIPT = `
+  local count = redis.call('INCR', KEYS[1])
+  if count == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+  end
+  return count
+`;
+const NUMBER_WORD_PATTERN = /\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|hundredth|thousandth|millionth|billionth|trillionth|dozen|half|quarter|single|double|triple|once|twice)\b/i;
+
+const PRICE_CATEGORIES = new Map([
+  'Accessories',
+  'Books',
+  'Bracelets',
+  'Clothing',
+  'Cosmetics',
+  'Electronics',
+  'Fruit Salad',
+  'Housing',
+  'Juice',
+  'Liquid Soap',
+  'Other',
+  'Pancake/Cake',
+  'Perfumes',
+  'Services',
+  'Shawarma',
+  'Shoes',
+  'Textbooks',
+].map((category) => [category.toLowerCase(), category]));
+
+const CONDITION_PROFILES = {
+  new: { label: 'new', factor: 1.0 },
+  'new / unopened': { label: 'new / unopened', factor: 1.0 },
+  'like new': { label: 'like new', factor: 0.9 },
+  'excellent condition': { label: 'excellent condition', factor: 0.85 },
+  'good condition': { label: 'good condition', factor: 0.7 },
+  used: { label: 'used', factor: 0.7 },
+  old: { label: 'old', factor: 0.4 },
+  'for parts': { label: 'for parts', factor: 0.4 },
+};
 
 let redis;
 let server;
@@ -54,6 +101,140 @@ const authenticate = (req, res, next) => {
   }
 };
 
+function normalizePriceCategory(value) {
+  if (typeof value !== 'string') throw new AppError('Category and condition required', 400);
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  const category = PRICE_CATEGORIES.get(normalized.toLowerCase());
+  if (!category) throw new AppError('Unsupported category', 400);
+  return category;
+}
+
+function getConditionProfile(value) {
+  if (typeof value !== 'string') throw new AppError('Category and condition required', 400);
+  const normalized = value.trim().replace(/\s+/g, ' ').toLowerCase();
+  if (!normalized || normalized.length > 40) throw new AppError('Invalid condition', 400);
+  return CONDITION_PROFILES[normalized] || { label: 'other', factor: 0.7 };
+}
+
+function getAnthropicModel() {
+  const configured = process.env.ANTHROPIC_MODEL?.trim();
+  if (!configured) return DEFAULT_ANTHROPIC_MODEL;
+  return /^[a-zA-Z0-9._:-]{1,100}$/.test(configured) ? configured : DEFAULT_ANTHROPIC_MODEL;
+}
+
+function getClaudeExplanation(message) {
+  const content = message?.content;
+  const hasSingleTextBlock = Array.isArray(content)
+    && content.length === 1
+    && content[0]?.type === 'text'
+    && typeof content[0].text === 'string';
+  const rawExplanation = hasSingleTextBlock ? content[0].text : '';
+  const explanation = rawExplanation.trim();
+  const sentenceMarks = explanation.match(/[.!?]/g) || [];
+
+  const isComplete = message?.stop_reason === 'end_turn';
+  const containsUnsafeMarkup = /[<>]/.test(explanation);
+  const containsControlOrBidiCharacters = /[\u0000-\u001F\u007F-\u009F\u061C\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/.test(rawExplanation);
+  const containsNumber = /\p{N}/u.test(explanation) || NUMBER_WORD_PATTERN.test(explanation);
+  const containsMarkdown = /[*_`~#>\[\]{}|\\]/.test(explanation) || /^[-+]\s/.test(explanation);
+  const isSingleSentence = sentenceMarks.length === 1 && /[.!?]$/.test(explanation);
+  if (
+    !isComplete
+    || !hasSingleTextBlock
+    || explanation.length < 10
+    || explanation.length > MAX_EXPLANATION_LENGTH
+    || containsUnsafeMarkup
+    || containsControlOrBidiCharacters
+    || containsNumber
+    || containsMarkdown
+    || !isSingleSentence
+  ) {
+    throw new Error('Invalid Claude response');
+  }
+  return explanation;
+}
+
+function getClaudeFailureReason(error, requestAborted) {
+  if (requestAborted) return 'timeout';
+  if (error instanceof Error && error.message === 'Invalid Claude response') return 'invalid_response';
+  return 'provider_error';
+}
+
+async function requestClaudePriceExplanation(context) {
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!apiKey) {
+    logger.warn('Claude price guidance unavailable', { reason: 'not_configured' });
+    throw new Error('Claude is not configured');
+  }
+
+  const model = getAnthropicModel();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CLAUDE_TIMEOUT_MS);
+  timeout.unref?.();
+
+  try {
+    const client = new Anthropic({
+      apiKey,
+      timeout: CLAUDE_TIMEOUT_MS,
+      maxRetries: CLAUDE_MAX_RETRIES,
+    });
+    const message = await client.messages.create({
+      model,
+      max_tokens: CLAUDE_MAX_TOKENS,
+      thinking: { type: 'disabled' },
+      system: [
+        'You explain a deterministic CampusTrade price estimate to a university seller.',
+        'Use only the supplied completed-sale facts and give qualitative guidance only.',
+        'Do not repeat any figure or sale count. Do not use digits, number words, HTML, or Markdown.',
+        'Return exactly one plain-text sentence under 280 characters.',
+      ].join(' '),
+      messages: [{ role: 'user', content: JSON.stringify(context) }],
+    }, { signal: controller.signal });
+
+    return {
+      explanation: getClaudeExplanation(message),
+      provider: 'anthropic',
+      model,
+    };
+  } catch (error) {
+    const reason = getClaudeFailureReason(error, controller.signal.aborted);
+    logger.warn('Claude price guidance unavailable', { reason, model });
+    throw new Error('Claude price guidance unavailable');
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function getFreshPriceStats(category) {
+  const result = await pool.query(
+    `SELECT AVG(t.final_price)::float AS avg, COUNT(*)::int AS cnt
+       FROM transactions t
+       JOIN listings l ON l.id = t.listing_id
+      WHERE l.category = $1
+        AND t.completed_at > NOW() - INTERVAL '90 days'
+        AND t.final_price > 0`,
+    [category]
+  );
+  const row = result.rows[0] || {};
+  return { avg: Number(row.avg), count: Number(row.cnt) };
+}
+
+async function consumeClaudeQuota(userId) {
+  if (
+    (typeof userId !== 'string' && typeof userId !== 'number')
+    || !String(userId).trim()
+    || String(userId).length > 128
+  ) {
+    throw new Error('Invalid quota identity');
+  }
+  const count = Number(await redis.eval(CLAUDE_QUOTA_SCRIPT, {
+    keys: [`ai:claude_quota:${String(userId)}`],
+    arguments: [String(CLAUDE_QUOTA_WINDOW_SECONDS)],
+  }));
+  if (!Number.isInteger(count) || count < 1) throw new Error('Invalid Redis quota response');
+  return count <= CLAUDE_QUOTA_LIMIT;
+}
+
 // Helper: get or compute category average price
 async function getCategoryAvgPrice(category) {
   const cacheKey = `ai:category_avg:${category}`;
@@ -69,26 +250,96 @@ async function getCategoryAvgPrice(category) {
   return data;
 }
 
-// POST /api/ai/price-suggestion — rule-based price engine
+// POST /api/ai/price-suggestion — deterministic estimate with opt-in Claude explanation
 app.post('/api/ai/price-suggestion', authenticate, asyncHandler(async (req, res) => {
-  const { category, condition } = req.body;
-  if (!category || !condition) throw new AppError('Category and condition required', 400);
+  const category = normalizePriceCategory(req.body?.category);
+  const condition = getConditionProfile(req.body?.condition);
 
-  const condKey = condition.toLowerCase();
-  const factor = CONDITION_FACTORS[condKey] ?? 0.7;
+  const { avg, count } = await getFreshPriceStats(category);
 
-  const { avg, count } = await getCategoryAvgPrice(category);
-
-  if (count < 3) {
-    return res.json({ suggestion: null, confidence: 'low', message: 'Not enough comparable sales data' });
+  if (!Number.isInteger(count) || count < 0) {
+    return res.status(503).json({
+      error: 'Price data is temporarily unavailable',
+      code: 'PRICE_DATA_UNAVAILABLE',
+    });
   }
 
-  const suggested = Math.round(avg * factor);
-  const min = Math.round(suggested * 0.9);
-  const max = Math.round(suggested * 1.1);
+  if (count > 0 && (!Number.isFinite(avg) || avg <= 0)) {
+    return res.status(503).json({
+      error: 'Price data is temporarily unavailable',
+      code: 'PRICE_DATA_UNAVAILABLE',
+    });
+  }
 
-  logger.info('Price suggestion generated', { category, condition, suggested });
-  res.json({ suggestion: suggested, range: { min, max }, confidence: 'high', count });
+  if (count < MIN_COMPARABLE_SALES) {
+    return res.json({
+      suggestion: null,
+      confidence: 'low',
+      count,
+      message: 'Not enough completed campus sales for reliable price guidance',
+    });
+  }
+
+  const suggested = Math.max(1, Math.round(avg * condition.factor));
+  const min = Math.max(1, Math.round(suggested * 0.9));
+  const max = Math.max(1, Math.round(suggested * 1.1));
+  let claudeGuidance;
+
+  if (!process.env.ANTHROPIC_API_KEY?.trim()) {
+    logger.warn('Claude price guidance unavailable', { reason: 'not_configured' });
+    return res.status(503).json({
+      error: 'Claude price guidance is temporarily unavailable',
+      code: 'CLAUDE_UNAVAILABLE',
+    });
+  }
+
+  try {
+    const withinQuota = await consumeClaudeQuota(req.user.userId);
+    if (!withinQuota) {
+      return res.status(429).json({
+        error: 'Claude guidance request limit reached; please try again later',
+        code: 'CLAUDE_RATE_LIMITED',
+      });
+    }
+  } catch {
+    logger.warn('Claude price guidance unavailable', { reason: 'quota_check_failed' });
+    return res.status(503).json({
+      error: 'Claude price guidance is temporarily unavailable',
+      code: 'CLAUDE_UNAVAILABLE',
+    });
+  }
+
+  try {
+    claudeGuidance = await requestClaudePriceExplanation({
+      category,
+      condition: condition.label,
+      comparable_sales: count,
+      average_sale_price_fcfa: Math.round(avg),
+      deterministic_suggestion_fcfa: suggested,
+      deterministic_range_min_fcfa: min,
+      deterministic_range_max_fcfa: max,
+    });
+  } catch {
+    return res.status(503).json({
+      error: 'Claude price guidance is temporarily unavailable',
+      code: 'CLAUDE_UNAVAILABLE',
+    });
+  }
+
+  logger.info('Price suggestion generated', {
+    category,
+    condition: condition.label,
+    suggested,
+    provider: claudeGuidance.provider,
+    model: claudeGuidance.model,
+  });
+  res.json({
+    suggestion: suggested,
+    range: { min, max },
+    confidence: 'high',
+    count,
+    ...claudeGuidance,
+  });
 }));
 
 // POST /api/ai/fraud-check — rule-based fraud detection
@@ -296,5 +547,6 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 module.exports = app;
 module.exports._init = init;
+module.exports._requestClaudePriceExplanation = requestClaudePriceExplanation;
 module.exports._shutdown = shutdown;
 if (require.main === module) { init(); }

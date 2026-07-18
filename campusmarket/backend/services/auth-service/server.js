@@ -7,10 +7,14 @@ const { createCorsOptions } = require('../../shared/corsOptions');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { collectDefaultMetrics, register } = require('prom-client');
-const { OAuth2Client } = require('google-auth-library');
 
 const pool = require('../../shared/db');
-const { validateEmail, validatePassword, sanitizeString } = require('../../shared/validate');
+const {
+  validateUniversityEmail,
+  validatePassword,
+  sanitizeString,
+  UNIVERSITY_EMAIL_DOMAIN,
+} = require('../../shared/validate');
 const { asyncHandler, AppError } = require('../../shared/errorHandler');
 const logger = require('../../shared/logger');
 const { metricsMiddleware } = require('../../shared/metrics');
@@ -20,7 +24,6 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET;
 const SALT_ROUNDS = 12;
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 let server;
 
 collectDefaultMetrics();
@@ -38,13 +41,11 @@ const authLimiter = rateLimit({
   message: { error: 'Too many authentication attempts, please try again later.' },
 });
 
-const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
 // POST /api/auth/register
 app.post('/api/auth/register', authLimiter, asyncHandler(async (req, res) => {
   const { email, password, first_name, last_name, campus_zone } = req.body;
 
-  const emailCheck = validateEmail(email);
+  const emailCheck = validateUniversityEmail(email);
   if (!emailCheck.valid) throw new AppError(emailCheck.error, 400);
 
   const pwCheck = validatePassword(password);
@@ -77,16 +78,18 @@ app.post('/api/auth/register', authLimiter, asyncHandler(async (req, res) => {
 app.post('/api/auth/login', authLimiter, asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  const emailCheck = validateEmail(email);
+  const emailCheck = validateUniversityEmail(email);
   if (!emailCheck.valid) throw new AppError(emailCheck.error, 400);
+  if (typeof password !== 'string' || password.length === 0) throw new AppError('Password required', 400);
 
   const result = await pool.query(
-    'SELECT id, password_hash, is_verified, is_suspended, suspended_reason, role FROM users WHERE email=$1',
+    'SELECT id, email, password_hash, is_verified, is_suspended, suspended_reason, role FROM users WHERE email=$1',
     [emailCheck.value]
   );
   if (result.rows.length === 0) throw new AppError('Invalid credentials', 401);
 
   const user = result.rows[0];
+  if (!user.password_hash) throw new AppError('Invalid credentials', 401);
   const validPw = await bcrypt.compare(password, user.password_hash);
   if (!validPw) throw new AppError('Invalid credentials', 401);
 
@@ -121,32 +124,49 @@ app.post('/api/auth/logout', asyncHandler(async (req, res) => {
 }));
 
 // POST /api/auth/google — Google OAuth sign-in / sign-up
-app.post('/api/auth/google', asyncHandler(async (req, res) => {
+app.post('/api/auth/google', authLimiter, asyncHandler(async (req, res) => {
   const { credential } = req.body;
-  if (!credential) throw new AppError('Google credential required', 400);
+  if (typeof credential !== 'string' || !credential.trim()) throw new AppError('Google credential required', 400);
 
   // Verify ID token via Google tokeninfo API (no local cert download needed)
   const tokenInfoRes = await fetch(
-    `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`
+    `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`
   );
   if (!tokenInfoRes.ok) throw new AppError('Invalid Google token', 401);
   const payload = await tokenInfoRes.json();
   if (payload.aud !== process.env.GOOGLE_CLIENT_ID) throw new AppError('Token audience mismatch', 401);
 
   const { email, given_name, family_name, picture } = payload;
+  const emailVerified = payload.email_verified === true || payload.email_verified === 'true';
+  if (!emailVerified) throw new AppError('Google email is not verified', 401);
 
-  if (!email) throw new AppError('No email in Google account', 400);
+  const emailCheck = validateUniversityEmail(email);
+  if (!emailCheck.valid) throw new AppError(emailCheck.error, 400);
+  const universityEmail = emailCheck.value;
 
   // Find existing user or create new one
-  let result = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+  let result = await pool.query('SELECT * FROM users WHERE email=$1', [universityEmail]);
 
   if (result.rows.length === 0) {
     // New user — create auto-verified (Google already verified their email)
+    const firstName = sanitizeString(given_name, 100);
+    const lastName = sanitizeString(family_name, 100);
     result = await pool.query(
       'INSERT INTO users (email, first_name, last_name, avatar_url, is_verified, created_at) VALUES ($1,$2,$3,$4,TRUE,NOW()) RETURNING *',
-      [email, given_name || '', family_name || '', picture || null]
+      [universityEmail, firstName, lastName, sanitizeString(picture, 500) || null]
     );
-    logger.info('New user via Google OAuth', { email });
+
+    await publishEvent(EVENT_CHANNELS.USER, {
+      type: EVENT_TYPES.USER_REGISTERED,
+      userId: result.rows[0].id,
+      email: universityEmail,
+      first_name: firstName,
+      last_name: lastName,
+      campus_zone: '',
+      timestamp: new Date().toISOString()
+    });
+
+    logger.info('New user via Google OAuth', { email: universityEmail });
   }
 
   const user = result.rows[0];
@@ -155,7 +175,7 @@ app.post('/api/auth/google', asyncHandler(async (req, res) => {
   // Issue JWT same as regular login
   const accessToken = jwt.sign({ userId: user.id, role: user.role || 'user' }, JWT_SECRET, { expiresIn: '24h' });
 
-  logger.info('Google OAuth login', { userId: user.id, email });
+  logger.info('Google OAuth login', { userId: user.id, email: universityEmail });
   res.json({
     accessToken,
     user: { id: user.id, email: user.email, firstName: user.first_name, lastName: user.last_name },
@@ -221,7 +241,7 @@ app.get('/api/auth/verify/:token', asyncHandler(async (req, res) => {
 // POST /api/auth/resend-verification
 app.post('/api/auth/resend-verification', authLimiter, asyncHandler(async (req, res) => {
   const { email } = req.body;
-  const emailCheck = validateEmail(email);
+  const emailCheck = validateUniversityEmail(email);
   if (!emailCheck.valid) throw new AppError(emailCheck.error, 400);
 
   const user = await pool.query('SELECT id, is_verified FROM users WHERE email=$1', [emailCheck.value]);
@@ -245,7 +265,7 @@ app.post('/api/auth/resend-verification', authLimiter, asyncHandler(async (req, 
 // POST /api/auth/forgot-password
 app.post('/api/auth/forgot-password', authLimiter, asyncHandler(async (req, res) => {
   const { email } = req.body;
-  const emailCheck = validateEmail(email);
+  const emailCheck = validateUniversityEmail(email);
   if (!emailCheck.valid) throw new AppError(emailCheck.error, 400);
 
   const user = await pool.query('SELECT id FROM users WHERE email=$1', [emailCheck.value]);
@@ -285,7 +305,12 @@ app.post('/api/auth/reset-password', authLimiter, asyncHandler(async (req, res) 
 // GET /health
 app.get('/health', asyncHandler(async (_req, res) => {
   await pool.query('SELECT 1');
-  res.json({ status: 'ok', service: 'auth-service', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    service: 'auth-service',
+    contracts: { university_email: `${UNIVERSITY_EMAIL_DOMAIN}:v1` },
+    timestamp: new Date().toISOString(),
+  });
 }));
 
 // GET /metrics

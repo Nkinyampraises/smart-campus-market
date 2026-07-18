@@ -3,12 +3,30 @@ function sanitizeString(str, maxLen = 5000) {
   return str.replace(/[<>]/g, '').trim().slice(0, maxLen);
 }
 
+const EMAIL_MAX_LENGTH = 255;
+
 function validateEmail(email) {
   if (typeof email !== 'string') return { valid: false, error: 'Email required' };
   const trimmed = email.trim().toLowerCase();
+  if (trimmed.length > EMAIL_MAX_LENGTH) {
+    return { valid: false, error: `Email must be ${EMAIL_MAX_LENGTH} characters or fewer` };
+  }
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
   if (!emailRegex.test(trimmed)) return { valid: false, error: 'Please enter a valid email address' };
   return { valid: true, value: trimmed };
+}
+
+const UNIVERSITY_EMAIL_DOMAIN = 'ictuniversity.edu.cm';
+const UNIVERSITY_EMAIL_SUFFIX = `@${UNIVERSITY_EMAIL_DOMAIN}`;
+const UNIVERSITY_EMAIL_ERROR = `Use your ${UNIVERSITY_EMAIL_SUFFIX} email address`;
+
+function validateUniversityEmail(email) {
+  const emailCheck = validateEmail(email);
+  if (!emailCheck.valid) return emailCheck;
+  if (!emailCheck.value.endsWith(UNIVERSITY_EMAIL_SUFFIX)) {
+    return { valid: false, error: UNIVERSITY_EMAIL_ERROR };
+  }
+  return emailCheck;
 }
 
 function validatePassword(password) {
@@ -43,4 +61,15 @@ function validateUUID(id) {
   return uuidRegex.test(id);
 }
 
-module.exports = { sanitizeString, validateEmail, validatePassword, validateListing, validateUUID };
+module.exports = {
+  sanitizeString,
+  validateEmail,
+  validateUniversityEmail,
+  validatePassword,
+  validateListing,
+  validateUUID,
+  UNIVERSITY_EMAIL_DOMAIN,
+  UNIVERSITY_EMAIL_SUFFIX,
+  UNIVERSITY_EMAIL_ERROR,
+  EMAIL_MAX_LENGTH,
+};

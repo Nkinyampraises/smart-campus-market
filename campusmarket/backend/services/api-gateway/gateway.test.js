@@ -162,8 +162,8 @@ describe('Service routing', () => {
     expect(res.body.target).toBe('http://admin-service:3005');
   });
 
-  test('GET /api/ai/price-suggestion  → ai-service :3006', async () => {
-    const res = await request(app).get('/api/ai/price-suggestion');
+  test('POST /api/ai/price-suggestion  → ai-service :3006', async () => {
+    const res = await request(app).post('/api/ai/price-suggestion');
     expect(res.body.target).toBe('http://ai-service:3006');
   });
 
@@ -294,6 +294,25 @@ describe('Security & Vulnerability Tests', () => {
     }
     // At least one request must have been rate-limited (429 Too Many Requests)
     expect(statuses).toContain(429);
+  });
+
+  test('VULNERABILITY: gateway abuse protection does not preempt the shared Claude quota', async () => {
+    const responses = [];
+    const abuseGuardToken = jwt.sign(
+      { userId: 'gateway-abuse-guard-user', role: 'user' },
+      process.env.JWT_SECRET
+    );
+    for (let i = 0; i < 61; i++) {
+      const res = await request(app)
+        .post('/api/ai/price-suggestion')
+        .set('Authorization', `Bearer ${abuseGuardToken}`)
+        .send({ category: 'Electronics', condition: 'Good Condition' });
+      responses.push(res);
+    }
+
+    expect(responses.slice(0, 60).every((response) => response.status === 200)).toBe(true);
+    expect(responses[60].status).toBe(429);
+    expect(responses[60].body.code).toBe('AI_GUIDANCE_ABUSE_LIMITED');
   });
 
   // VULNERABILITY 3 — Tampered / expired JWT cannot escalate privileges

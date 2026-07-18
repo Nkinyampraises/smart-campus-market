@@ -51,14 +51,30 @@ if (envFile.isFile()) {
     it.id == 'campustrade-prod-env'
   }
 
-  if (existing == null) {
-    store.addCredentials(Domain.global(), replacement)
-  } else {
+  def saved = existing == null ?
+    store.addCredentials(Domain.global(), replacement) :
     store.updateCredentials(Domain.global(), existing, replacement)
+  if (!saved) {
+    throw new IllegalStateException('The production environment credential could not be saved.')
   }
   if (!envFile.delete()) {
     throw new IllegalStateException('The production environment credential was saved but its staging file could not be deleted.')
   }
+}
+
+// Claude has one source of truth: /srv/campustrade/shared/ai-provider.env.
+// Remove the superseded duplicate file credential if an older release created it.
+def provider = SystemCredentialsProvider.getInstance()
+def obsoleteAiCredential = provider.getCredentials().find {
+  it.id == 'campustrade-ai-provider-env'
+}
+if (obsoleteAiCredential != null &&
+    !provider.getStore().removeCredentials(Domain.global(), obsoleteAiCredential)) {
+  throw new IllegalStateException('The obsolete duplicate AI provider credential could not be removed.')
+}
+def obsoleteAiStage = new File('/var/lib/jenkins/campustrade-ai-provider.env')
+if (obsoleteAiStage.exists() && !obsoleteAiStage.delete()) {
+  throw new IllegalStateException('The obsolete AI provider staging file could not be deleted.')
 }
 
 def sonarTokenFile = new File('/var/lib/jenkins/campustrade-sonar.token')

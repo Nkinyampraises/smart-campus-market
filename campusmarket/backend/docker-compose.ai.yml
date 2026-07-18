@@ -1,0 +1,4 @@
+services:
+  ai-service:
+    env_file:
+      - "${AI_PROVIDER_ENV_FILE:?AI_PROVIDER_ENV_FILE must point to the dedicated AI provider environment file}"

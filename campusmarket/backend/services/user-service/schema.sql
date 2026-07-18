@@ -1,11 +1,17 @@
 CREATE TABLE IF NOT EXISTS users (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email       TEXT UNIQUE NOT NULL,
+  email       VARCHAR(255) UNIQUE NOT NULL
+              CONSTRAINT users_university_email_check CHECK (
+                email = LOWER(BTRIM(email))
+                AND CHAR_LENGTH(email) <= 255
+                AND email ~ '^[a-z0-9._%+-]+@ictuniversity[.]edu[.]cm$'
+              ),
   first_name  TEXT,
   last_name   TEXT,
   phone       TEXT,
   campus_zone TEXT,
   bio         TEXT,
+  avatar_url  TEXT,
   rating      NUMERIC(3,2) DEFAULT 0,
   sold_items  INT DEFAULT 0,
   is_verified BOOLEAN DEFAULT false,

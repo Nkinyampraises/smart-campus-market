@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
+import { UNIVERSITY_EMAIL_MAX_LENGTH, UNIVERSITY_EMAIL_SUFFIX, validateUniversityEmail } from '../utils/universityEmail';
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ const SignUp = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [stats, setStats] = useState({ active_listings: '—', verified_users: '—', satisfaction: '—' });
 
   useEffect(() => {
@@ -42,12 +44,18 @@ const SignUp = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
+    if (name === 'email') setEmailError('');
     setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    const emailCheck = validateUniversityEmail(formData.email);
+    if (!emailCheck.valid) {
+      setEmailError(emailCheck.error);
+      return;
+    }
+
     if (!formData.agreeToTerms) {
       setError('You must agree to the terms and conditions');
       return;
@@ -55,7 +63,7 @@ const SignUp = () => {
 
     setLoading(true);
     try {
-      const result = await register(formData);
+      const result = await register({ ...formData, email: emailCheck.value });
       if (result.success) {
         showToast('Account created! Please check your email to verify.', 'success');
         navigate('/verify-email');
@@ -142,23 +150,31 @@ const SignUp = () => {
 
             {/* Email Field with Icon */}
             <div className="flex flex-col gap-1">
-              <label className="font-[Manrope] text-[12px] font-bold tracking-wider text-[#5a4137] uppercase">
-                University Email
+              <label htmlFor="signup-email" className="font-[Manrope] text-[12px] font-bold tracking-wider text-[#5a4137] uppercase">
+                ICT University Email
               </label>
               <div className="relative">
                 <span className="material-symbols-outlined absolute left-6 top-1/2 -translate-y-1/2 text-[#5c5f60]">
                   mail
                 </span>
                 <input
-                  className="w-full pl-16 pr-6 py-3 rounded-xl border border-[#e1e3e4] bg-white focus:ring-2 focus:ring-[#ff6b1a] focus:border-[#ff6b1a] outline-none transition-all font-[Manrope] text-[16px]"
-                  placeholder="alex.rivers@university.edu"
+                  id="signup-email"
+                  className={`w-full pl-16 pr-6 py-3 rounded-xl border bg-white focus:ring-2 focus:ring-[#ff6b1a] focus:border-[#ff6b1a] outline-none transition-all font-[Manrope] text-[16px] ${emailError ? 'border-red-400' : 'border-[#e1e3e4]'}`}
+                  placeholder={`student${UNIVERSITY_EMAIL_SUFFIX}`}
                   type="email"
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
+                  autoComplete="email"
+                  maxLength={UNIVERSITY_EMAIL_MAX_LENGTH}
+                  aria-invalid={Boolean(emailError)}
+                  aria-describedby="signup-email-help"
                   required
                 />
               </div>
+              <p id="signup-email-help" aria-live="polite" className={`font-[Manrope] text-[11px] ${emailError ? 'text-red-500' : 'text-[#5c5f60]'}`}>
+                {emailError || `Registration is limited to ${UNIVERSITY_EMAIL_SUFFIX}.`}
+              </p>
             </div>
 
             {/* Password Field with Icon */}
@@ -360,7 +376,7 @@ const SignUp = () => {
               verified
             </span>
             <p className="font-[Manrope] text-[14px] text-[#5a4137]">
-              Verified .edu registration required for all members
+              Verified {UNIVERSITY_EMAIL_SUFFIX} registration required for all members
             </p>
           </div>
         </div>

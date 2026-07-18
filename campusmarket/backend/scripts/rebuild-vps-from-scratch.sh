@@ -8,6 +8,7 @@ repository="${REPOSITORY:-https://github.com/Nkinyampraises/smart-campus-market.
 branch="${BRANCH:-main}"
 deployment_root=/srv/campustrade
 jenkins_home=/var/lib/jenkins
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 [[ "$confirmation" == DELETE_CAMPUSTRADE_PLATFORM ]] || {
   echo 'Refusing rebuild: set CONFIRM_RESET=DELETE_CAMPUSTRADE_PLATFORM.' >&2
@@ -58,6 +59,7 @@ done
 
 bootstrap_state=/root/campustrade-rebuild
 external_env="$bootstrap_state/existing-backend.env"
+external_ai_env="$bootstrap_state/existing-ai-provider.env"
 install -d -o root -g root -m 0700 "$bootstrap_state"
 if [[ -r "$deployment_root/shared/backend.env" ]]; then
   install -o root -g root -m 0600 "$deployment_root/shared/backend.env" "$external_env"
@@ -65,6 +67,15 @@ elif [[ ! -f "$external_env" ]]; then
   : >"$external_env"
   chmod 0600 "$external_env"
 fi
+if [[ -r "$deployment_root/shared/ai-provider.env" ]]; then
+  install -o root -g root -m 0600 "$deployment_root/shared/ai-provider.env" "$external_ai_env"
+elif [[ ! -f "$external_ai_env" ]]; then
+  echo 'Refusing rebuild: no protected Anthropic provider environment is available.' >&2
+  exit 1
+fi
+
+# Validate the preserved inputs before stopping a service or deleting state.
+bash "$script_dir/validate-ai-provider-env.sh" "$external_env" "$external_ai_env"
 
 echo 'Stopping CampusTrade platform services...'
 systemctl stop jenkins || true
@@ -163,8 +174,11 @@ chmod 0750 "$project_root"/backend/scripts/*.sh "$project_root"/k8s/scripts/*.sh
 echo 'Recreating protected production configuration with rotated internal secrets...'
 install -d -o azureuser -g azureuser -m 0750 "$deployment_root/shared"
 SOURCE_ENV="$external_env" bash "$project_root/backend/scripts/generate-production-env.sh"
+install -o root -g root -m 0600 \
+  "$external_ai_env" "$deployment_root/shared/ai-provider.env"
 CREDENTIALS_ONLY=true bash "$project_root/backend/scripts/provision-operator-accounts.sh"
 shred -u "$external_env" 2>/dev/null || rm -f "$external_env"
+shred -u "$external_ai_env" 2>/dev/null || rm -f "$external_ai_env"
 
 echo 'Reinstalling and securing Jenkins from the pinned plugin manifest...'
 START_JENKINS=false bash "$project_root/backend/scripts/install-jenkins-ubuntu.sh"
@@ -179,6 +193,12 @@ cat >"$inventory_file" <<'INVENTORY'
 localhost ansible_connection=local ansible_python_interpreter=/usr/bin/python3
 INVENTORY
 ansible-playbook -i "$inventory_file" "$project_root/ansible/playbooks/provision-vps.yml"
+chown root:campustrade-deploy "$deployment_root/shared/ai-provider.env"
+chmod 0640 "$deployment_root/shared/ai-provider.env"
+sudo -u jenkins test -r "$deployment_root/shared/ai-provider.env" || {
+  echo 'Jenkins cannot read the canonical AI provider environment.' >&2
+  exit 1
+}
 
 echo 'Starting a clean SonarQube instance and creating the Jenkins analysis credential...'
 docker compose -p campusmarket \
@@ -208,7 +228,7 @@ done
 curl -fsS -u "$JENKINS_USERNAME:$JENKINS_PASSWORD" \
   http://127.0.0.1:8080/job/campustrade-ci/api/json >/dev/null
 [[ ! -e "$jenkins_home/campustrade-prod.env" ]] || {
-  echo 'Jenkins did not consume the staged production environment.' >&2
+  echo 'Jenkins did not consume the staged production environments.' >&2
   exit 1
 }
 

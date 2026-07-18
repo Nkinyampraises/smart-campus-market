@@ -1,6 +1,7 @@
 # CampusTrade
 node_modules/
 .env
+backend/ai-provider.env
 dist/
 ci-reports/
 *.log

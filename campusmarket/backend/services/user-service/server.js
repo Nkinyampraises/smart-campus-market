@@ -6,7 +6,7 @@ const helmet = require('helmet');
 const { collectDefaultMetrics, register } = require('prom-client');
 const pool = require('../../shared/db');
 const { authenticate } = require('../../shared/authMiddleware');
-const { sanitizeString, validateUUID } = require('../../shared/validate');
+const { sanitizeString, validateUUID, validateUniversityEmail } = require('../../shared/validate');
 const { asyncHandler, AppError } = require('../../shared/errorHandler');
 const logger = require('../../shared/logger');
 const { metricsMiddleware } = require('../../shared/metrics');
@@ -167,12 +167,24 @@ app.use((err, req, res, _next) => {
 });
 
 async function setupEventHandlers() {
-  await subscribeToEvents(EVENT_CHANNELS.USER, (event) => {
+  await subscribeToEvents(EVENT_CHANNELS.USER, async (event) => {
     if (event.type === EVENT_TYPES.USER_REGISTERED) {
-      pool.query(
+      const emailCheck = validateUniversityEmail(event.email);
+      if (!validateUUID(event.userId) || !emailCheck.valid) {
+        logger.warn('Rejected invalid user registration event');
+        return;
+      }
+
+      await pool.query(
         'INSERT INTO users (id, email, first_name, last_name, campus_zone, created_at) VALUES ($1,$2,$3,$4,$5,NOW()) ON CONFLICT DO NOTHING',
-        [event.userId, event.email, event.first_name, event.last_name, event.campus_zone]
-      ).catch((e) => logger.error('Profile create failed', { error: e.message }));
+        [
+          event.userId,
+          emailCheck.value,
+          sanitizeString(event.first_name, 100),
+          sanitizeString(event.last_name, 100),
+          sanitizeString(event.campus_zone, 100),
+        ]
+      );
     }
     if (event.type === EVENT_TYPES.USER_SUSPENDED) {
       pool.query('UPDATE users SET is_suspended=true WHERE id=$1', [event.userId]).catch(() => {});

@@ -41,7 +41,45 @@ paths:
         content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } }
       responses:
         '200': { description: Authenticated, content: { application/json: { schema: { $ref: '#/components/schemas/AuthTokens' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/auth/google:
+    post:
+      tags: [Authentication]
+      summary: Authenticate with a verified ICT University Google identity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credential]
+              properties:
+                credential: { type: string, minLength: 1, description: Google ID token }
+      responses:
+        '200': { description: Authenticated, content: { application/json: { schema: { $ref: '#/components/schemas/AuthTokens' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/auth/forgot-password:
+    post:
+      tags: [Authentication]
+      summary: Request a password reset for an ICT University account
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UniversityEmailRequest' } } }
+      responses:
+        '200': { description: Generic reset-request acknowledgement }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/auth/resend-verification:
+    post:
+      tags: [Authentication]
+      summary: Resend verification for an ICT University account
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UniversityEmailRequest' } } }
+      responses:
+        '200': { description: Generic verification-request acknowledgement }
+        '400': { $ref: '#/components/responses/BadRequest' }
   /api/listings:
     get:
       tags: [Listings]
@@ -116,12 +154,76 @@ paths:
   /api/ai/price-suggestion:
     post:
       tags: [Commerce]
-      summary: Suggest a listing price using marketplace history
+      summary: Ask Claude to explain a deterministic marketplace price estimate
+      description: |
+        Uses completed CampusTrade sales to calculate the numeric estimate and confidence band.
+        When at least three comparable sales exist, Claude gives one qualitative sentence about why
+        the fixed range fits, using only normalized aggregate facts and never repeating a number.
+        Claude never sets the price.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
-        content: { application/json: { schema: { type: object, required: [category, condition], properties: { category: { type: string }, condition: { type: string } } } } }
-      responses: { '200': { description: Price suggestion and confidence band } }
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category, condition]
+              properties:
+                category:
+                  type: string
+                  enum: [Accessories, Books, Bracelets, Clothing, Cosmetics, Electronics, Fruit Salad, Housing, Juice, Liquid Soap, Other, Pancake/Cake, Perfumes, Services, Shawarma, Shoes, Textbooks]
+                condition: { type: string, minLength: 1, maxLength: 40 }
+      responses:
+        '200':
+          description: Deterministic estimate with Claude explanation, or an honest low-data result without a provider claim
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [suggestion, range, confidence, count, explanation, provider, model]
+                    properties:
+                      suggestion: { type: integer, minimum: 1, description: Deterministic estimate in FCFA }
+                      range:
+                        type: object
+                        required: [min, max]
+                        properties:
+                          min: { type: integer, minimum: 1 }
+                          max: { type: integer, minimum: 1 }
+                      confidence: { type: string, const: high }
+                      count: { type: integer, minimum: 3 }
+                      explanation: { type: string, minLength: 10, maxLength: 320 }
+                      provider: { type: string, const: anthropic }
+                      model: { type: string }
+                  - type: object
+                    required: [suggestion, confidence, count, message]
+                    properties:
+                      suggestion: { type: 'null' }
+                      confidence: { type: string, const: low }
+                      count: { type: integer, minimum: 0, maximum: 2 }
+                      message: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429':
+          description: The authenticated user has exhausted the shared Claude quota or the higher-volume gateway abuse guard
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, code]
+                properties:
+                  error: { type: string }
+                  code: { type: string, enum: [CLAUDE_RATE_LIMITED, AI_GUIDANCE_ABUSE_LIMITED] }
+        '503':
+          description: Price aggregates, shared quota storage, or Claude are temporarily unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, code]
+                properties:
+                  error: { type: string }
+                  code: { type: string, enum: [PRICE_DATA_UNAVAILABLE, CLAUDE_UNAVAILABLE] }
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -144,14 +246,26 @@ components:
       type: object
       required: [email, password, first_name, last_name]
       properties:
-        email: { type: string, format: email }
+        email: { $ref: '#/components/schemas/UniversityEmail' }
         password: { type: string, minLength: 8 }
         first_name: { type: string }
         last_name: { type: string }
     LoginRequest:
       type: object
       required: [email, password]
-      properties: { email: { type: string, format: email }, password: { type: string } }
+      properties: { email: { $ref: '#/components/schemas/UniversityEmail' }, password: { type: string } }
+    UniversityEmail:
+      type: string
+      format: email
+      maxLength: 255
+      pattern: '^[a-z0-9._%+-]+@ictuniversity[.]edu[.]cm$'
+      example: student@ictuniversity.edu.cm
+      description: Canonical lowercase ICT University email; the API trims and lowercases accepted input.
+    UniversityEmailRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { $ref: '#/components/schemas/UniversityEmail' }
     AuthTokens:
       type: object
       properties: { accessToken: { type: string }, refreshToken: { type: string }, user: { type: object } }

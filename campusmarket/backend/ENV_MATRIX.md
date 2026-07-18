@@ -51,7 +51,17 @@ This matrix documents variables actually used by code.
 - `SERVICE_NAME` (optional)
 - `JWT_SECRET` (required)
 - DB + Redis vars (required)
-- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` (optional, currently unused by code; reserved for future LLM-backed features)
+- `ANTHROPIC_API_KEY` (required in production): Anthropic credential used only by
+  the Claude price-guidance path.
+- `ANTHROPIC_MODEL` (required and pinned in production): reviewed Claude model
+  identifier. The current production value is `claude-sonnet-5`; the server
+  default exists only as a development safety net.
+
+Both Anthropic values belong in the separate protected `ai-provider.env` file.
+Kubernetes mounts its dedicated Secret only into `ai-service`; do not add these
+values to the shared backend environment. On the VPS, rotate this file only
+with `backend/scripts/rotate-ai-provider-secret.sh` so Jenkins deploys the
+validated change.
 
 ## Search Service
 - `PORT` (optional, default `3007`)

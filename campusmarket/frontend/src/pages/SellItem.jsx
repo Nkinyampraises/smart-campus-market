@@ -1,16 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ClaudePriceGuidance from '../components/ClaudePriceGuidance';
 import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
-const CATEGORY_SUGGESTIONS = {
-  Textbooks:   { min: 5000,   max: 36000  },
-  Electronics: { min: 60000,  max: 300000 },
-  Housing:     { min: 30000,  max: 120000 },
-  Clothing:    { min: 5000,   max: 30000  },
-  Services:    { min: 10000,  max: 60000  },
-  Accessories: { min: 5000,   max: 50000  },
-};
+const CATEGORIES = ['Textbooks', 'Electronics', 'Housing', 'Clothing', 'Services', 'Accessories'];
 
 const CONDITIONS = ['New / Unopened', 'Excellent Condition', 'Good Condition', 'Used', 'For Parts'];
 
@@ -72,8 +66,6 @@ const SellItem = () => {
   const [dragOver, setDragOver] = useState(false);
   const [published, setPublished] = useState(false);
   const [errors, setErrors] = useState({});
-
-  const suggestion = CATEGORY_SUGGESTIONS[form.category] || CATEGORY_SUGGESTIONS.Textbooks;
 
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -250,7 +242,7 @@ const SellItem = () => {
                       onChange={(e) => handleChange('category', e.target.value)}
                       className="w-full appearance-none px-4 py-3 border border-gray-200 rounded-xl text-[14px] focus:outline-none focus:ring-2 focus:ring-[#ff6b1a] bg-white pr-10"
                     >
-                      {Object.keys(CATEGORY_SUGGESTIONS).map((c) => (
+                      {CATEGORIES.map((c) => (
                         <option key={c}>{c}</option>
                       ))}
                     </select>
@@ -300,25 +292,11 @@ const SellItem = () => {
                 {errors.price && <p className="text-red-500 text-[12px] mt-1">{errors.price}</p>}
               </div>
 
-              {/* AI Suggestion */}
-              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-5">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="material-symbols-outlined text-emerald-600 text-[20px]">auto_awesome</span>
-                  <p className="font-black text-[14px] text-[#1b1c1c]">AI Price Suggestion</p>
-                </div>
-                <p className="text-[13px] text-gray-600 mb-4">
-                  Based on similar {form.category.toLowerCase()} listings in your campus area, we suggest a price
-                  between{' '}
-                  <span className="text-[#ff6b1a] font-bold">{formatFCFA(suggestion.min)}</span> –{' '}
-                  <span className="text-[#ff6b1a] font-bold">{formatFCFA(suggestion.max)}</span> for a faster sale.
-                </p>
-                <button
-                  onClick={() => handleChange('price', suggestion.min)}
-                  className="bg-emerald-600 text-white px-5 py-2 rounded-lg text-[11px] font-black tracking-widest uppercase hover:bg-emerald-700 transition-all active:scale-95"
-                >
-                  Apply Suggestion
-                </button>
-              </div>
+              <ClaudePriceGuidance
+                category={form.category}
+                condition={form.condition}
+                onApply={(price) => handleChange('price', String(price))}
+              />
             </div>
           </div>
         )}
@@ -367,7 +345,7 @@ const SellItem = () => {
                       onChange={(e) => handleChange('category', e.target.value)}
                       className="w-full appearance-none px-4 py-3 border border-gray-200 rounded-xl text-[14px] focus:outline-none focus:ring-2 focus:ring-[#ff6b1a] bg-white pr-10"
                     >
-                      {Object.keys(CATEGORY_SUGGESTIONS).map((c) => <option key={c}>{c}</option>)}
+                      {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
                     </select>
                     <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px] pointer-events-none">expand_more</span>
                   </div>
@@ -405,25 +383,11 @@ const SellItem = () => {
                 </div>
               </div>
 
-              {/* AI Suggestion */}
-              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-5">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="material-symbols-outlined text-emerald-600 text-[20px]">auto_awesome</span>
-                  <p className="font-black text-[14px] text-[#1b1c1c]">AI Price Suggestion</p>
-                </div>
-                <p className="text-[13px] text-gray-600 mb-4">
-                  Based on similar {form.category.toLowerCase()} listings in your campus area, we suggest a price
-                  between{' '}
-                  <span className="text-[#ff6b1a] font-bold">{formatFCFA(suggestion.min)}</span> –{' '}
-                  <span className="text-[#ff6b1a] font-bold">{formatFCFA(suggestion.max)}</span> for a faster sale.
-                </p>
-                <button
-                  onClick={() => handleChange('price', suggestion.min)}
-                  className="bg-emerald-600 text-white px-5 py-2 rounded-lg text-[11px] font-black tracking-widest uppercase hover:bg-emerald-700 transition-all active:scale-95"
-                >
-                  Apply Suggestion
-                </button>
-              </div>
+              <ClaudePriceGuidance
+                category={form.category}
+                condition={form.condition}
+                onApply={(price) => handleChange('price', String(price))}
+              />
             </div>
 
             {/* Right — Media & Campus Zone */}

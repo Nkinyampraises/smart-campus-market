@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Topbar from '../components/Topbar';
+import ClaudePriceGuidance from '../components/ClaudePriceGuidance';
 import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
 
@@ -19,22 +20,6 @@ const CAMPUS_ZONES = [
   { id: 'cisco-lab',      label: 'Cisco Lab',        icon: 'router'           },
   { id: 'computer-lab',   label: 'Computer Lab',     icon: 'desktop_windows'  },
 ];
-
-const PRICE_SUGGESTIONS = {
-  Electronics:   { min: 2000,   max: 500000 },
-  Clothing:      { min: 2000,   max: 30000  },
-  Services:      { min: 1000,   max: 60000  },
-  Accessories:   { min: 500,    max: 50000  },
-  Cosmetics:     { min: 500,    max: 15000  },
-  Perfumes:      { min: 250,    max: 10000  },
-  Bracelets:     { min: 100,    max: 5000   },
-  'Fruit Salad': { min: 500,    max: 1000   },
-  Juice:         { min: 350,    max: 1500   },
-  'Pancake/Cake':{ min: 250,    max: 5000   },
-  Shawarma:      { min: 500,    max: 2000   },
-  Shoes:         { min: 1500,   max: 15000  },
-  'Liquid Soap': { min: 500,    max: 5000   },
-};
 
 const DEFAULT_IMAGES = {
   Electronics:   'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400&h=300&fit=crop',
@@ -73,8 +58,6 @@ const CreateListing = () => {
   const [dragOver, setDragOver] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-
-  const suggestion = PRICE_SUGGESTIONS[form.category];
 
   const set = (field, value) => {
     setForm((p) => ({ ...p, [field]: value }));
@@ -242,30 +225,11 @@ const CreateListing = () => {
               </div>
             </div>
 
-            {/* AI Suggestion sidebar */}
-            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-6 h-fit">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="material-symbols-outlined text-emerald-600 text-[22px]">auto_awesome</span>
-                <p className="font-black text-[15px] text-[#1b1c1c]">AI Price Suggestion</p>
-              </div>
-              <p className="text-[13px] text-gray-600 mb-1">
-                For <span className="font-bold text-[#1b1c1c]">{form.category}</span> in <span className="font-bold text-[#1b1c1c]">{form.condition}</span> condition, the suggested price range is:
-              </p>
-              <div className="flex items-center gap-2 my-4">
-                <span className="text-[#ff6b1a] font-black text-[18px]">{fmtFCFA(suggestion.min)}</span>
-                <span className="text-gray-400">–</span>
-                <span className="text-[#ff6b1a] font-black text-[18px]">{fmtFCFA(suggestion.max)}</span>
-              </div>
-              <p className="text-[12px] text-gray-500 mb-4">
-                Based on recent campus listings. A lower price means faster sale.
-              </p>
-              <button
-                onClick={() => set('price', suggestion.min)}
-                className="w-full bg-emerald-600 text-white py-2.5 rounded-xl text-[12px] font-black tracking-widest uppercase hover:bg-emerald-700 transition-all"
-              >
-                Use Suggested Price
-              </button>
-            </div>
+            <ClaudePriceGuidance
+              category={form.category}
+              condition={form.condition}
+              onApply={(price) => set('price', String(price))}
+            />
           </div>
         )}
 

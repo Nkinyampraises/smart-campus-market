@@ -79,6 +79,19 @@ app.use(limiter);
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many auth attempts, please try again later' } });
 const strictLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500 });
 const adminLimiter  = rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 });
+// Coarse gateway abuse protection only. The AI service owns the lower,
+// cost-bearing 10-call quota in shared Redis after comparable-data checks.
+const aiGuidanceAbuseLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.userId || req.ip,
+  message: {
+    error: 'Too many AI guidance requests, please try again later',
+    code: 'AI_GUIDANCE_ABUSE_LIMITED',
+  },
+});
 
 // Service URLs (from env or defaults)
 const SERVICES = {
@@ -140,6 +153,7 @@ app.use('/api/offers', proxy(SERVICES.chat));
 app.use('/api/admin', adminLimiter, proxy(SERVICES.admin));
 
 // AI service
+app.use('/api/ai/price-suggestion', aiGuidanceAbuseLimiter);
 app.use('/api/ai', proxy(SERVICES.ai));
 
 // Search service

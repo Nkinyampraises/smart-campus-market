@@ -4,7 +4,12 @@
 -- ── Users (auth + profile combined) ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email            VARCHAR(255) UNIQUE NOT NULL,
+  email            VARCHAR(255) UNIQUE NOT NULL
+                   CONSTRAINT users_university_email_check CHECK (
+                     email = LOWER(BTRIM(email))
+                     AND CHAR_LENGTH(email) <= 255
+                     AND email ~ '^[a-z0-9._%+-]+@ictuniversity[.]edu[.]cm$'
+                   ),
   password_hash    VARCHAR(255),
   first_name       VARCHAR(100),
   last_name        VARCHAR(100),
@@ -201,6 +206,8 @@ CREATE INDEX IF NOT EXISTS idx_search_vector       ON search_index USING GIN(sea
 CREATE INDEX IF NOT EXISTS idx_wishlist_user       ON wishlist(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_seller ON transactions(seller_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_buyer  ON transactions(buyer_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_listing_completed_positive
+  ON transactions(listing_id, completed_at DESC) WHERE final_price > 0;
 CREATE INDEX IF NOT EXISTS idx_reports_listing     ON reports(listing_id);
 CREATE INDEX IF NOT EXISTS idx_reports_status      ON reports(status);
 CREATE INDEX IF NOT EXISTS idx_fraud_flags_resolved ON fraud_flags(resolved);

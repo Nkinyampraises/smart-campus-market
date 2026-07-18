@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import AuthNavbar from '../components/AuthNavbar';
+import { UNIVERSITY_EMAIL_MAX_LENGTH, UNIVERSITY_EMAIL_SUFFIX, validateUniversityEmail } from '../utils/universityEmail';
 
 const zones = [
   'Canteen',
@@ -56,21 +57,23 @@ const Register = () => {
 
   const validate = () => {
     const errs = {};
+    const emailCheck = validateUniversityEmail(form.email);
     if (!form.firstName.trim()) errs.firstName = 'Required';
     if (!form.lastName.trim()) errs.lastName = 'Required';
-    if (!form.email.includes('@')) errs.email = 'Enter a valid email';
+    if (!emailCheck.valid) errs.email = emailCheck.error;
     if (form.password.length < 8) errs.password = 'Minimum 8 characters';
     if (!form.campusZone) errs.campusZone = 'Select your campus zone';
     if (!form.terms) errs.terms = 'You must accept the terms';
     setErrors(errs);
-    return Object.keys(errs).length === 0;
+    return { valid: Object.keys(errs).length === 0, email: emailCheck.value };
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validate()) return;
+    const validation = validate();
+    if (!validation.valid) return;
     setLoading(true);
-    const result = await register(form);
+    const result = await register({ ...form, email: validation.email });
     setLoading(false);
     if (result.success) {
       showToast('Account created! You can now log in.', 'success');
@@ -128,17 +131,25 @@ const Register = () => {
 
             {/* Email */}
             <div>
-              <label className="block text-[11px] font-black tracking-wider text-gray-400 uppercase mb-1.5">
-                University Email
+              <label htmlFor="register-email" className="block text-[11px] font-black tracking-wider text-gray-400 uppercase mb-1.5">
+                ICT University Email
               </label>
               <input
+                id="register-email"
                 type="email"
                 value={form.email}
                 onChange={(e) => set('email', e.target.value)}
-                placeholder="you@email.com"
+                placeholder={`student${UNIVERSITY_EMAIL_SUFFIX}`}
                 className={`w-full px-4 py-3 rounded-xl border text-[14px] focus:outline-none focus:ring-2 focus:ring-[#ff6b1a] transition-all ${errors.email ? 'border-red-400' : 'border-[#e2bfb2]'}`}
+                autoComplete="email"
+                maxLength={UNIVERSITY_EMAIL_MAX_LENGTH}
+                aria-invalid={Boolean(errors.email)}
+                aria-describedby="register-email-help"
+                required
               />
-              {errors.email && <p className="text-red-500 text-[11px] mt-1">{errors.email}</p>}
+              <p id="register-email-help" aria-live="polite" className={`text-[11px] mt-1 ${errors.email ? 'text-red-500' : 'text-gray-500'}`}>
+                {errors.email || `Registration is limited to ${UNIVERSITY_EMAIL_SUFFIX}.`}
+              </p>
             </div>
 
             {/* Password */}

@@ -168,11 +168,18 @@ for script in \
   generate-production-env.sh bootstrap-jenkins.sh rebuild-vps-from-scratch.sh \
   seed-production-data.sh verify-production-seed.sh smoke-test-running.sh \
   provision-operator-accounts.sh sync-ansible-source.sh \
-  migrate-university-emails.sh test-university-data-migration.sh
+  migrate-university-emails.sh test-university-data-migration.sh \
+  enforce-production-contract.sh test-production-contract-migration.sh \
+  validate-ai-provider-env.sh rotate-ai-provider-secret.sh \
+  verify-strict-auth-release.sh test-ai-secret-isolation.sh \
+  test-compose-ai-secret-isolation.sh
 do
   bash -n "$scripts_dir/$script"
 done
 bash -n "$root_dir/k8s/scripts/deploy.sh"
 bash "$scripts_dir/test-university-data-migration.sh"
+bash "$scripts_dir/test-production-contract-migration.sh"
+bash "$scripts_dir/test-ai-secret-isolation.sh"
+bash "$scripts_dir/test-compose-ai-secret-isolation.sh"
 
 echo 'Platform rebuild automation tests passed.'

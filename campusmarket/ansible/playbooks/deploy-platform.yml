@@ -14,6 +14,19 @@
         that: deployment_mode in ['data-only', 'full']
         fail_msg: deployment_mode must be data-only or full.
 
+    - name: Inspect forbidden source-tree AI provider file
+      ansible.builtin.stat:
+        path: "{{ deployment_source }}/backend/ai-provider.env"
+        follow: false
+      register: source_ai_provider_file
+
+    - name: Refuse an AI provider secret in the synchronized source tree
+      ansible.builtin.assert:
+        that: not source_ai_provider_file.stat.exists
+        fail_msg: >-
+          Remove backend/ai-provider.env from the source tree. Production uses
+          only {{ deployment_root }}/shared/ai-provider.env.
+
     - name: Synchronize reviewed source into deployment root
       ansible.builtin.command:
         argv:
@@ -26,10 +39,16 @@
           - --exclude=coverage
           - --exclude=evidence
           - --exclude=backend/.env
+          - --exclude=backend/ai-provider.env
           - "{{ deployment_source }}/"
           - "{{ deployment_root }}/current/"
       register: sync_result
       changed_when: sync_result.rc == 0
+
+    - name: Remove any stale source-tree AI provider copy from the release
+      ansible.builtin.file:
+        path: "{{ deployment_root }}/current/backend/ai-provider.env"
+        state: absent
 
     - name: Grant the Jenkins deployment group access to the release tree
       ansible.builtin.file:
@@ -60,6 +79,32 @@
         owner: "{{ deployment_user }}"
         group: "{{ deployment_group }}"
         mode: '0640'
+
+    - name: Inspect protected AI provider environment
+      ansible.builtin.stat:
+        path: "{{ deployment_root }}/shared/ai-provider.env"
+        follow: true
+      register: ai_provider_environment
+      when: deployment_mode == 'full'
+
+    - name: Require protected AI provider environment
+      ansible.builtin.assert:
+        that:
+          - ai_provider_environment.stat.exists
+          - ai_provider_environment.stat.isreg | default(false)
+        fail_msg: >-
+          The protected AI provider environment is missing from
+          {{ deployment_root }}/shared/ai-provider.env.
+      when: deployment_mode == 'full'
+
+    - name: Protect AI provider environment permissions
+      ansible.builtin.file:
+        path: "{{ deployment_root }}/shared/ai-provider.env"
+        state: file
+        owner: root
+        group: "{{ deployment_group }}"
+        mode: '0640'
+      when: deployment_mode == 'full'
 
     - name: Link protected environment into release
       ansible.builtin.file:
@@ -96,6 +141,9 @@
         chdir: "{{ deployment_root }}/current"
       environment:
         ENV_FILE: backend/.env
+        AI_ENV_FILE: >-
+          {{ (deployment_root + '/shared/ai-provider.env')
+             if deployment_mode == 'full' else '' }}
         IMAGE_TAG: "{{ image_tag }}"
       register: deploy_result
       changed_when: true

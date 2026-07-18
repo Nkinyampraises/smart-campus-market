@@ -5,20 +5,43 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export const getToken = () => localStorage.getItem('campustrade_token');
 
+export class ApiError extends Error {
+  constructor(message, { status = 0, code = 'API_ERROR', cause } = {}) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    if (cause) this.cause = cause;
+  }
+}
+
 const request = async (method, path, body = null) => {
   const headers = { 'Content-Type': 'application/json' };
   const token = getToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (error) {
+    throw new ApiError('Unable to reach CampusTrade', {
+      status: 0,
+      code: 'NETWORK_ERROR',
+      cause: error,
+    });
+  }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `HTTP ${res.status}`);
+    const responseBody = await res.json().catch(() => ({}));
+    const message = typeof responseBody?.error === 'string'
+      ? responseBody.error
+      : `Request failed (${res.status})`;
+    const code = typeof responseBody?.code === 'string' ? responseBody.code : 'API_ERROR';
+    throw new ApiError(message, { status: res.status, code });
   }
 
   return res.json();

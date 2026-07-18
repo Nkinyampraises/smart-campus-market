@@ -20,7 +20,8 @@
 - [ ] Admin receives fraud flags from AI over `audit.channel`
 
 ## Deploy Gates
-- [ ] `docker compose -f backend/docker-compose.prod.yml config` validates
+- [ ] `docker compose -f backend/docker-compose.prod.yml config --quiet` validates
+      without rendering provider secrets; never archive production Compose config output
 - [ ] Smoke test script passes (`backend/scripts/smoke-test.sh`)
 - [ ] Azure Compose rollout succeeds with all 18 declared services running
 - [ ] Rollback command/procedure is documented and verified

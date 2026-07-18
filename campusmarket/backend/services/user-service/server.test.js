@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const SECRET = 'test_secret';
 const mkToken = (userId = 'u1', role = 'user') => jwt.sign({ userId, role }, SECRET);
 const UUID = '550e8400-e29b-41d4-a716-446655440000';
+const OVERSIZED_UNIVERSITY_EMAIL = `${'a'.repeat(235)}@ictuniversity.edu.cm`;
 
 jest.mock('prom-client', () => ({
   collectDefaultMetrics: jest.fn(),
@@ -34,10 +35,6 @@ jest.mock('../../shared/authMiddleware', () => ({
     } catch { return res.status(401).json({ error: 'Invalid token' }); }
   },
 }));
-jest.mock('../../shared/validate', () => ({
-  sanitizeString: (s) => (s ? String(s).trim() : ''),
-  validateUUID: () => true,
-}));
 jest.mock('../../shared/errorHandler', () => ({
   asyncHandler: (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next),
   AppError: class AppError extends Error {
@@ -55,7 +52,10 @@ beforeAll(() => {
   app = require('./server');
 });
 
-afterEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  pool.query.mockReset().mockResolvedValue({ rows: [] });
+});
 
 describe('Shared CORS policy', () => {
   const { createCorsOptions } = require('../../shared/corsOptions');
@@ -276,6 +276,16 @@ describe('User Service — Lifecycle (init/shutdown/events)', () => {
     exitSpy.mockRestore();
   });
 
+  const registerEventHandler = async () => {
+    const mockServer = { close: jest.fn((cb) => cb && cb()) };
+    jest.spyOn(app, 'listen').mockReturnValue(mockServer);
+    await app._init();
+    app.listen.mockRestore();
+
+    const { subscribeToEvents } = require('../../shared/events');
+    return subscribeToEvents.mock.calls.find(c => c[0] === 'user')[1];
+  };
+
   it('_init starts redis and registers event handlers', async () => {
     const mockServer = { close: jest.fn((cb) => cb && cb()) };
     jest.spyOn(app, 'listen').mockReturnValue(mockServer);
@@ -287,23 +297,76 @@ describe('User Service — Lifecycle (init/shutdown/events)', () => {
   });
 
   it('event handler processes USER_REGISTERED event', async () => {
-    const { subscribeToEvents } = require('../../shared/events');
-    const userCall = subscribeToEvents.mock.calls.find(c => c[0] === 'user');
-    if (userCall) {
-      pool.query.mockResolvedValue({ rows: [] });
-      await userCall[1]({ type: 'user.registered', userId: 'u1', email: 'a@b.cm', first_name: 'A', last_name: 'B', campus_zone: 'Main' });
-    }
-    expect(true).toBe(true);
+    const handleUserEvent = await registerEventHandler();
+    pool.query.mockResolvedValue({ rows: [] });
+
+    await handleUserEvent({
+      type: 'user.registered',
+      userId: UUID,
+      email: ' Student@ICTUNIVERSITY.EDU.CM ',
+      first_name: 'A',
+      last_name: 'B',
+      campus_zone: 'Main',
+    });
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO users'),
+      [UUID, 'student@ictuniversity.edu.cm', 'A', 'B', 'Main']
+    );
+  });
+
+  it('event handler rejects USER_REGISTERED events with non-university email', async () => {
+    const handleUserEvent = await registerEventHandler();
+
+    await handleUserEvent({
+      type: 'user.registered',
+      userId: UUID,
+      email: 'student@gmail.com',
+      first_name: 'A',
+      last_name: 'B',
+      campus_zone: 'Main',
+    });
+
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('event handler rejects USER_REGISTERED events with an email longer than 255 characters', async () => {
+    const handleUserEvent = await registerEventHandler();
+
+    await handleUserEvent({
+      type: 'user.registered',
+      userId: UUID,
+      email: OVERSIZED_UNIVERSITY_EMAIL,
+      first_name: 'A',
+      last_name: 'B',
+      campus_zone: 'Main',
+    });
+
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('event handler rejects USER_REGISTERED events with a malformed user ID', async () => {
+    const handleUserEvent = await registerEventHandler();
+
+    await handleUserEvent({
+      type: 'user.registered',
+      userId: 'not-a-uuid',
+      email: 'student@ictuniversity.edu.cm',
+      first_name: 'A',
+      last_name: 'B',
+      campus_zone: 'Main',
+    });
+
+    expect(pool.query).not.toHaveBeenCalled();
   });
 
   it('event handler processes USER_SUSPENDED event', async () => {
-    const { subscribeToEvents } = require('../../shared/events');
-    const userCall = subscribeToEvents.mock.calls.find(c => c[0] === 'user');
-    if (userCall) {
-      pool.query.mockResolvedValue({ rows: [] });
-      await userCall[1]({ type: 'user.suspended', userId: 'u1' });
-    }
-    expect(true).toBe(true);
+    const handleUserEvent = await registerEventHandler();
+    pool.query.mockResolvedValue({ rows: [] });
+
+    await handleUserEvent({ type: 'user.suspended', userId: 'u1' });
+
+    expect(pool.query).toHaveBeenCalledWith('UPDATE users SET is_suspended=true WHERE id=$1', ['u1']);
   });
 
   it('_shutdown closes server, redis and exits', async () => {

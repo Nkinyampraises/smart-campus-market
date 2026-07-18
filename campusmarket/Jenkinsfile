@@ -240,7 +240,9 @@ pipeline {
         }
       }
       steps {
-        withCredentials([file(credentialsId: 'campustrade-prod-env', variable: 'PROD_ENV_FILE')]) {
+        withCredentials([
+          file(credentialsId: 'campustrade-prod-env', variable: 'PROD_ENV_FILE')
+        ]) {
           dir('campusmarket') {
             sh '''
               test -d "$DEPLOY_ROOT"
@@ -253,8 +255,13 @@ pipeline {
                 --exclude 'node_modules' \
                 --exclude 'coverage' \
                 --exclude 'backend/.env' \
+                --exclude 'backend/ai-provider.env' \
                 ./ "$DEPLOY_ROOT/current/"
+              rm -f "$DEPLOY_ROOT/current/backend/ai-provider.env"
+              test ! -e "$DEPLOY_ROOT/current/backend/ai-provider.env"
               install -m 640 "$PROD_ENV_FILE" "$DEPLOY_ROOT/current/backend/.env"
+              AI_PROVIDER_ENV_FILE="$DEPLOY_ROOT/shared/ai-provider.env"
+              test -r "$AI_PROVIDER_ENV_FILE"
 
               cd "$DEPLOY_ROOT/current"
               chmod 750 k8s/scripts/*.sh backend/scripts/*.sh
@@ -270,16 +277,16 @@ pipeline {
               cutover_marker="$DEPLOY_ROOT/k3s-cutover-complete"
               if [ ! -f "$cutover_marker" ]; then
                 if docker container inspect campusmarket-postgres-1 >/dev/null 2>&1; then
-                  IMAGE_TAG="$release_tag" ENV_FILE=backend/.env \
+                  IMAGE_TAG="$release_tag" ENV_FILE=backend/.env AI_ENV_FILE="$AI_PROVIDER_ENV_FILE" \
                     bash k8s/scripts/migrate-and-cutover.sh
                 else
                   echo 'No legacy Compose database found; performing a native clean K3s deployment.'
-                  IMAGE_TAG="$release_tag" ENV_FILE=backend/.env \
+                  IMAGE_TAG="$release_tag" ENV_FILE=backend/.env AI_ENV_FILE="$AI_PROVIDER_ENV_FILE" \
                     bash k8s/scripts/deploy.sh full
                 fi
                 date -u +'%Y-%m-%dT%H:%M:%SZ' >"$cutover_marker"
               else
-                IMAGE_TAG="$release_tag" ENV_FILE=backend/.env \
+                IMAGE_TAG="$release_tag" ENV_FILE=backend/.env AI_ENV_FILE="$AI_PROVIDER_ENV_FILE" \
                   bash k8s/scripts/deploy.sh full
                 BASE_URL=http://127.0.0.1 bash backend/scripts/smoke-test-running.sh
               fi

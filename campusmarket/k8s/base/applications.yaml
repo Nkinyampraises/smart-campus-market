@@ -436,6 +436,7 @@ spec:
           imagePullPolicy: Never
           envFrom:
             - secretRef: { name: campustrade-secrets }
+            - secretRef: { name: ai-provider-secrets }
             - configMapRef: { name: campustrade-config }
           env:
             - { name: PORT, value: "3006" }

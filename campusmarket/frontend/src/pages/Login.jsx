@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { api, saveToken } from '../services/api';
 import AuthNavbar from '../components/AuthNavbar';
+import { UNIVERSITY_EMAIL_MAX_LENGTH, UNIVERSITY_EMAIL_SUFFIX, validateUniversityEmail } from '../utils/universityEmail';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -15,12 +16,20 @@ const Login = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const emailCheck = validateUniversityEmail(email);
+    if (!emailCheck.valid) {
+      setEmailError(emailCheck.error);
+      return;
+    }
+
+    setEmailError('');
     setLoading(true);
     try {
-      const result = await login(email, password);
+      const result = await login(emailCheck.value, password);
       if (result.success) {
         showToast('Welcome back!', 'success');
         // Admins go to dashboard, regular users go to browse
@@ -28,7 +37,7 @@ const Login = () => {
       } else if (result.suspended) {
         navigate('/suspended');
       } else {
-        showToast('Invalid email or password', 'error');
+        showToast(result.error || 'Invalid email or password', 'error');
       }
     } catch {
       showToast('Something went wrong. Try again.', 'error');
@@ -75,17 +84,27 @@ const Login = () => {
               {/* Email Field */}
               <div>
                 <label className="block font-[Manrope] text-[12px] font-bold tracking-wider text-[#5c5f60] mb-2 uppercase" htmlFor="email">
-                  Email Address
+                  ICT University Email
                 </label>
                 <input
-                  className="w-full px-4 py-3 rounded-lg border border-[#e2bfb2] focus:border-[#ff6b1a] focus:ring-1 focus:ring-[#ff6b1a] bg-[#fcf9f8] outline-none transition-all font-[Manrope] text-[16px]"
+                  className={`w-full px-4 py-3 rounded-lg border focus:border-[#ff6b1a] focus:ring-1 focus:ring-[#ff6b1a] bg-[#fcf9f8] outline-none transition-all font-[Manrope] text-[16px] ${emailError ? 'border-red-400' : 'border-[#e2bfb2]'}`}
                   id="email"
-                  placeholder="student@university.edu"
+                  placeholder={`student${UNIVERSITY_EMAIL_SUFFIX}`}
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailError) setEmailError('');
+                  }}
+                  autoComplete="email"
+                  maxLength={UNIVERSITY_EMAIL_MAX_LENGTH}
+                  aria-invalid={Boolean(emailError)}
+                  aria-describedby="login-email-help"
                   required
                 />
+                <p id="login-email-help" aria-live="polite" className={`text-[11px] mt-1 ${emailError ? 'text-red-500' : 'text-gray-500'}`}>
+                  {emailError || `Only ${UNIVERSITY_EMAIL_SUFFIX} accounts can sign in.`}
+                </p>
               </div>
 
               {/* Password Field */}
@@ -161,6 +180,9 @@ const Login = () => {
                   />
                 )}
               </div>
+              <p className="text-center text-[11px] text-gray-500">
+                Your Google account must use {UNIVERSITY_EMAIL_SUFFIX}.
+              </p>
             </form>
 
             <p className="mt-6 text-center text-[14px] text-gray-500">

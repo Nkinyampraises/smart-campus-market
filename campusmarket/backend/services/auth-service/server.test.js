@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
 const SECRET = 'test_secret';
+const OVERSIZED_UNIVERSITY_EMAIL = `${'a'.repeat(235)}@ictuniversity.edu.cm`;
+const originalFetch = global.fetch;
 
 jest.mock('prom-client', () => ({
   collectDefaultMetrics: jest.fn(),
@@ -38,12 +40,14 @@ beforeAll(() => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  pool.query.mockReset().mockResolvedValue({ rows: [] });
   jest.spyOn(bcrypt, 'hash').mockResolvedValue('$2a$12$hashedpw');
   jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
 });
 
 afterEach(() => {
   jest.restoreAllMocks();
+  global.fetch = originalFetch;
 });
 
 describe('Auth Service — Register', () => {
@@ -51,6 +55,28 @@ describe('Auth Service — Register', () => {
     const res = await request(app).post('/api/auth/register')
       .send({ email: 'notanemail', password: 'pass1234', first_name: 'A', last_name: 'B', campus_zone: 'X' });
     expect(res.status).toBe(400);
+  });
+
+  it.each([
+    ['a personal Gmail address', 'student@gmail.com'],
+    ['a domain suffix lookalike', 'student@ictuniversity.edu.cm.evil.test'],
+    ['a university subdomain', 'student@alumni.ictuniversity.edu.cm'],
+    ['embedded whitespace', 'student name@ictuniversity.edu.cm'],
+    ['a non-string value', 42],
+  ])('rejects %s', async (_caseName, email) => {
+    const res = await request(app).post('/api/auth/register')
+      .send({ email, password: 'securePass123', first_name: 'A', last_name: 'B', campus_zone: 'X' });
+
+    expect(res.status).toBe(400);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects a normalized university email longer than 255 characters', async () => {
+    const res = await request(app).post('/api/auth/register')
+      .send({ email: `  ${OVERSIZED_UNIVERSITY_EMAIL}  `, password: 'securePass123', first_name: 'A', last_name: 'B', campus_zone: 'X' });
+
+    expect(res.status).toBe(400);
+    expect(pool.query).not.toHaveBeenCalled();
   });
 
   it('rejects short password', async () => {
@@ -69,22 +95,61 @@ describe('Auth Service — Register', () => {
   it('creates new user successfully', async () => {
     pool.query
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ id: 'u1' }] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [{ id: 'u1' }] });
     const res = await request(app).post('/api/auth/register')
-      .send({ email: 'new@ictuniversity.edu.cm', password: 'securePass123', first_name: 'John', last_name: 'Doe', campus_zone: 'Main' });
+      .send({ email: '  New.Student@ICTUNIVERSITY.EDU.CM  ', password: 'securePass123', first_name: 'John', last_name: 'Doe', campus_zone: 'Main' });
     expect(res.status).toBe(201);
     expect(res.body.userId).toBe('u1');
+    expect(pool.query).toHaveBeenNthCalledWith(
+      1,
+      'SELECT id FROM users WHERE email=$1',
+      ['new.student@ictuniversity.edu.cm']
+    );
     expect(publishEvent).toHaveBeenCalledTimes(1);
     expect(publishEvent).toHaveBeenCalledWith('user', expect.objectContaining({
       type: 'user.registered',
       userId: 'u1',
-      email: 'new@ictuniversity.edu.cm',
+      email: 'new.student@ictuniversity.edu.cm',
     }));
   });
 });
 
 describe('Auth Service — Login', () => {
+  it.each([
+    'student@gmail.com',
+    'student@ictuniversity.edu.cm.evil.test',
+    'student @ictuniversity.edu.cm',
+  ])('rejects a non-university identity before querying the database: %s', async (email) => {
+    const res = await request(app).post('/api/auth/login').send({ email, password: 'pass' });
+
+    expect(res.status).toBe(400);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects an oversized normalized email before querying the database', async () => {
+    const res = await request(app).post('/api/auth/login')
+      .send({ email: OVERSIZED_UNIVERSITY_EMAIL, password: 'pass' });
+
+    expect(res.status).toBe(400);
+    expect(pool.query).not.toHaveBeenCalled();
+    expect(bcrypt.compare).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a missing password', undefined],
+    ['an empty password', ''],
+    ['a non-string password', 42],
+  ])('rejects %s before querying the database', async (_caseName, password) => {
+    const payload = { email: 'student@ictuniversity.edu.cm' };
+    if (password !== undefined) payload.password = password;
+
+    const res = await request(app).post('/api/auth/login').send(payload);
+
+    expect(res.status).toBe(400);
+    expect(pool.query).not.toHaveBeenCalled();
+    expect(bcrypt.compare).not.toHaveBeenCalled();
+  });
+
   it('rejects user not found', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] });
     const res = await request(app).post('/api/auth/login')
@@ -125,10 +190,13 @@ describe('Auth Service — Login', () => {
       .mockResolvedValueOnce({ rows: [] });
     jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
     const res = await request(app).post('/api/auth/login')
-      .send({ email: 'test@ictuniversity.edu.cm', password: 'correct123' });
+      .send({ email: '  TEST@ICTUNIVERSITY.EDU.CM ', password: 'correct123' });
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('accessToken');
     expect(res.body).toHaveProperty('refreshToken');
+    expect(res.body.user.email).toBe('test@ictuniversity.edu.cm');
+    expect(pool.query.mock.calls[0][0]).toContain('SELECT id, email, password_hash');
+    expect(pool.query.mock.calls[0][1]).toEqual(['test@ictuniversity.edu.cm']);
   });
 
   it('rejects missing email', async () => {
@@ -166,6 +234,15 @@ describe('Auth Service — Google OAuth', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects a blank Google credential without calling Google', async () => {
+    global.fetch = jest.fn();
+
+    const res = await request(app).post('/api/auth/google').send({ credential: '   ' });
+
+    expect(res.status).toBe(400);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid google token', async () => {
     global.fetch = jest.fn().mockResolvedValue({ ok: false });
     const res = await request(app).post('/api/auth/google').send({ credential: 'bad_token' });
@@ -181,35 +258,85 @@ describe('Auth Service — Google OAuth', () => {
     expect(res.status).toBe(401);
   });
 
+  it('rejects password login for a Google-only account without raising an internal error', async () => {
+    pool.query.mockResolvedValueOnce({
+      rows: [{ id: 'u1', email: 'google@ictuniversity.edu.cm', password_hash: null, is_verified: true, is_suspended: false, role: 'user' }],
+    });
+
+    const res = await request(app).post('/api/auth/login')
+      .send({ email: 'google@ictuniversity.edu.cm', password: 'not-used' });
+
+    expect(res.status).toBe(401);
+    expect(bcrypt.compare).not.toHaveBeenCalled();
+  });
+
+  it('rejects a Google identity whose email is not verified', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        aud: 'test_google_client_id',
+        email: 'student@ictuniversity.edu.cm',
+        email_verified: 'false',
+      }),
+    });
+
+    const res = await request(app).post('/api/auth/google').send({ credential: 'valid_token' });
+
+    expect(res.status).toBe(401);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('rejects a verified Google identity outside ICT University', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        aud: 'test_google_client_id',
+        email: 'student@gmail.com',
+        email_verified: 'true',
+      }),
+    });
+
+    const res = await request(app).post('/api/auth/google').send({ credential: 'valid_token' });
+
+    expect(res.status).toBe(400);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
   it('logs in existing google user', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: jest.fn().mockResolvedValue({ aud: 'test_google_client_id', email: 'g@example.com', given_name: 'G', family_name: 'U', picture: null }),
+      json: jest.fn().mockResolvedValue({ aud: 'test_google_client_id', email: '  G@ICTUNIVERSITY.EDU.CM ', email_verified: true, given_name: 'G', family_name: 'U', picture: null }),
     });
-    pool.query.mockResolvedValueOnce({ rows: [{ id: 'u1', email: 'g@example.com', first_name: 'G', last_name: 'U', is_suspended: false, role: 'user' }] });
+    pool.query.mockResolvedValueOnce({ rows: [{ id: 'u1', email: 'g@ictuniversity.edu.cm', first_name: 'G', last_name: 'U', is_suspended: false, role: 'user' }] });
     const res = await request(app).post('/api/auth/google').send({ credential: 'valid_token' });
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('accessToken');
+    expect(pool.query).toHaveBeenCalledWith('SELECT * FROM users WHERE email=$1', ['g@ictuniversity.edu.cm']);
   });
 
   it('creates new google user', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: jest.fn().mockResolvedValue({ aud: 'test_google_client_id', email: 'new@example.com', given_name: 'New', family_name: 'User', picture: null }),
+      json: jest.fn().mockResolvedValue({ aud: 'test_google_client_id', email: 'new@ictuniversity.edu.cm', email_verified: 'true', given_name: 'New', family_name: 'User', picture: null }),
     });
     pool.query
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ id: 'u2', email: 'new@example.com', first_name: 'New', last_name: 'User', is_suspended: false, role: 'user' }] });
+      .mockResolvedValueOnce({ rows: [{ id: 'u2', email: 'new@ictuniversity.edu.cm', first_name: 'New', last_name: 'User', is_suspended: false, role: 'user' }] });
     const res = await request(app).post('/api/auth/google').send({ credential: 'valid_token' });
     expect(res.status).toBe(200);
+    expect(publishEvent).toHaveBeenCalledWith('user', expect.objectContaining({
+      type: 'user.registered',
+      userId: 'u2',
+      email: 'new@ictuniversity.edu.cm',
+    }));
   });
 
   it('rejects suspended google user', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: jest.fn().mockResolvedValue({ aud: 'test_google_client_id', email: 'sus@example.com', given_name: 'Sus', family_name: 'User', picture: null }),
+      json: jest.fn().mockResolvedValue({ aud: 'test_google_client_id', email: 'sus@ictuniversity.edu.cm', email_verified: 'true', given_name: 'Sus', family_name: 'User', picture: null }),
     });
-    pool.query.mockResolvedValueOnce({ rows: [{ id: 'u3', email: 'sus@example.com', is_suspended: true, suspended_reason: 'Violation' }] });
+    pool.query.mockResolvedValueOnce({ rows: [{ id: 'u3', email: 'sus@ictuniversity.edu.cm', is_suspended: true, suspended_reason: 'Violation' }] });
     const res = await request(app).post('/api/auth/google').send({ credential: 'valid_token' });
     expect(res.status).toBe(403);
   });
@@ -289,6 +416,13 @@ describe('Auth Service — Resend Verification', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects a valid personal email outside ICT University', async () => {
+    const res = await request(app).post('/api/auth/resend-verification').send({ email: 'student@gmail.com' });
+
+    expect(res.status).toBe(400);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
   it('responds safely when user not found', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] });
     const res = await request(app).post('/api/auth/resend-verification')
@@ -310,8 +444,12 @@ describe('Auth Service — Resend Verification', () => {
       .mockResolvedValueOnce({ rows: [{ id: 'u1', is_verified: false }] })
       .mockResolvedValueOnce({ rows: [] });
     const res = await request(app).post('/api/auth/resend-verification')
-      .send({ email: 'unverified@ictuniversity.edu.cm' });
+      .send({ email: ' UNVERIFIED@ICTUNIVERSITY.EDU.CM ' });
     expect(res.status).toBe(200);
+    expect(pool.query.mock.calls[0][1]).toEqual(['unverified@ictuniversity.edu.cm']);
+    expect(publishEvent).toHaveBeenCalledWith('notification', expect.objectContaining({
+      email: 'unverified@ictuniversity.edu.cm',
+    }));
   });
 });
 
@@ -319,6 +457,13 @@ describe('Auth Service — Forgot Password', () => {
   it('rejects invalid email', async () => {
     const res = await request(app).post('/api/auth/forgot-password').send({ email: 'bad' });
     expect(res.status).toBe(400);
+  });
+
+  it('rejects a valid personal email outside ICT University', async () => {
+    const res = await request(app).post('/api/auth/forgot-password').send({ email: 'student@gmail.com' });
+
+    expect(res.status).toBe(400);
+    expect(pool.query).not.toHaveBeenCalled();
   });
 
   it('responds safely when user not found', async () => {
@@ -331,9 +476,12 @@ describe('Auth Service — Forgot Password', () => {
   it('sends reset email for valid user', async () => {
     pool.query.mockResolvedValueOnce({ rows: [{ id: 'u1' }] });
     const res = await request(app).post('/api/auth/forgot-password')
-      .send({ email: 'real@ictuniversity.edu.cm' });
+      .send({ email: ' REAL@ICTUNIVERSITY.EDU.CM ' });
     expect(res.status).toBe(200);
-    expect(publishEvent).toHaveBeenCalled();
+    expect(pool.query.mock.calls[0][1]).toEqual(['real@ictuniversity.edu.cm']);
+    expect(publishEvent).toHaveBeenCalledWith('notification', expect.objectContaining({
+      email: 'real@ictuniversity.edu.cm',
+    }));
   });
 });
 
@@ -383,6 +531,7 @@ describe('Auth Service — Health & Metrics', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
     expect(res.body.service).toBe('auth-service');
+    expect(res.body.contracts.university_email).toBe('ictuniversity.edu.cm:v1');
   });
 
   it('GET /metrics returns prometheus metrics', async () => {

@@ -1,5 +1,6 @@
 param(
   [string]$EnvFile = "backend/.env",
+  [string]$AiProviderEnvFile = "backend/ai-provider.env",
   [string]$ProjectName = "campusmarket",
   [switch]$DisableStrictSsl
 )
@@ -12,6 +13,10 @@ Set-Location $root
 if (-not (Test-Path $EnvFile)) {
   Copy-Item "backend/.env.example" $EnvFile
 }
+if (-not (Test-Path $AiProviderEnvFile)) {
+  throw "Missing dedicated AI provider environment: $AiProviderEnvFile"
+}
+$env:AI_PROVIDER_ENV_FILE = (Resolve-Path $AiProviderEnvFile).Path
 
 $envMap = @{}
 Get-Content $EnvFile | ForEach-Object {
@@ -27,7 +32,12 @@ if ($DisableStrictSsl) {
   $env:NPM_CONFIG_STRICT_SSL = "false"
 }
 
-$composeArgs = @("-p", $ProjectName, "--env-file", $EnvFile, "-f", "backend/docker-compose.prod.yml")
+$composeArgs = @(
+  "-p", $ProjectName,
+  "--env-file", $EnvFile,
+  "-f", "backend/docker-compose.prod.yml",
+  "-f", "backend/docker-compose.ai.yml"
+)
 
 docker compose @composeArgs up -d --build
 

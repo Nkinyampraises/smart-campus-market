@@ -13,16 +13,25 @@
 
 ## Quick Start (Hardened Compose)
 
+From the repository root, create separate shared and AI-provider environment
+files. The provider file must contain only `ANTHROPIC_API_KEY` and
+`ANTHROPIC_MODEL`:
+
 ```bash
 cd backend
 cp .env.example .env
-# set strong secrets and real SMTP credentials
-docker compose -p campusmarket -f docker-compose.prod.yml up -d --build
+cp ai-provider.env.example ai-provider.env
+chmod 600 .env ai-provider.env
+# Set strong shared secrets/SMTP values in .env and the Claude values only in
+# ai-provider.env.
+AI_PROVIDER_ENV_FILE="$PWD/ai-provider.env" \
+  docker compose -p campusmarket --env-file .env \
+  -f docker-compose.prod.yml -f docker-compose.ai.yml up -d --build
 ```
 
 Windows PowerShell quick deploy:
 ```powershell
-.\backend\scripts\deploy-prod.ps1
+.\backend\scripts\deploy-prod.ps1 -AiProviderEnvFile backend/ai-provider.env
 ```
 
 If your environment uses an intercepting proxy/custom CA and Docker image builds fail on npm TLS verification, use:
@@ -46,13 +55,17 @@ Prometheus's Traefik route requires the protected edge credential.
 
 Health checks:
 ```bash
-docker compose -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml logs -f api-gateway
+AI_PROVIDER_ENV_FILE="$PWD/ai-provider.env" \
+  docker compose -p campusmarket --env-file .env \
+  -f docker-compose.prod.yml -f docker-compose.ai.yml ps
+AI_PROVIDER_ENV_FILE="$PWD/ai-provider.env" \
+  docker compose -p campusmarket --env-file .env \
+  -f docker-compose.prod.yml -f docker-compose.ai.yml logs -f api-gateway
 ```
 
 ## Environment Variables (Required)
 
-Set these in `backend/.env`:
+Set these shared values in `backend/.env`:
 - `JWT_SECRET` (64+ random chars)
 - `GOOGLE_CLIENT_ID` (the same OAuth web client ID used by the frontend)
 - `DB_USER`, `DB_PASSWORD`, `DB_NAME`
@@ -60,6 +73,22 @@ Set these in `backend/.env`:
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `FROM_EMAIL`
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL` for browser push notifications
 - `SONAR_DB_USER`, `SONAR_DB_PASSWORD`, `SONAR_DB_NAME` for SonarQube's isolated database
+
+Set only these values in the separate `backend/ai-provider.env` file for a
+Compose deployment:
+
+- `ANTHROPIC_API_KEY`
+- `ANTHROPIC_MODEL`
+
+On the VPS, use the root-owned, `campustrade-deploy` group-readable mode `0640` file at
+`/srv/campustrade/shared/ai-provider.env` instead. Set
+`AI_PROVIDER_ENV_FILE` to its absolute path when invoking Compose. This path is
+used by the dedicated `docker-compose.ai.yml` override and is not injected into
+other containers. The provider file is attached with a service-level
+`env_file` setting only on `ai-service`, so
+the API key and model are unavailable to the gateway and every other service.
+Never put either provider value in the shared backend environment or source
+control.
 
 Generate strong secrets:
 ```bash
@@ -113,8 +142,10 @@ The production Compose stack includes:
 Start or update monitoring with the same deployment command:
 
 ```bash
-docker compose -p campusmarket --env-file backend/.env \
-  -f backend/docker-compose.prod.yml up -d
+docker compose -p campusmarket \
+  --env-file /srv/campustrade/shared/backend.env \
+  -f /srv/campustrade/current/backend/docker-compose.prod.yml \
+  up -d sonar-db sonarqube
 ```
 
 The alert rules are evaluated by Prometheus. Production notification delivery

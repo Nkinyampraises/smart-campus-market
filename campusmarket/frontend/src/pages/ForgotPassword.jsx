@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
+import { UNIVERSITY_EMAIL_MAX_LENGTH, UNIVERSITY_EMAIL_SUFFIX, validateUniversityEmail } from '../utils/universityEmail';
 
 const ForgotPassword = () => {
   const { showToast } = useToast();
@@ -9,16 +10,21 @@ const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [emailError, setEmailError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email.includes('@')) {
-      showToast('Enter a valid email address', 'error');
+    const emailCheck = validateUniversityEmail(email);
+    if (!emailCheck.valid) {
+      setEmailError(emailCheck.error);
       return;
     }
+
+    setEmailError('');
     setLoading(true);
     try {
-      await api.forgotPassword(email);
+      await api.forgotPassword(emailCheck.value);
+      setEmail(emailCheck.value);
       setSent(true);
       showToast('Reset link sent! Check your email.', 'success');
     } catch (err) {
@@ -49,17 +55,28 @@ const ForgotPassword = () => {
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-[11px] font-black tracking-wider text-gray-400 uppercase mb-2">
-                  Email Address
+                <label htmlFor="forgot-password-email" className="block text-[11px] font-black tracking-wider text-gray-400 uppercase mb-2">
+                  ICT University Email
                 </label>
                 <input
+                  id="forgot-password-email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@ictuniversity.edu.cm"
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailError) setEmailError('');
+                  }}
+                  placeholder={`student${UNIVERSITY_EMAIL_SUFFIX}`}
+                  autoComplete="email"
+                  maxLength={UNIVERSITY_EMAIL_MAX_LENGTH}
+                  aria-invalid={Boolean(emailError)}
+                  aria-describedby="forgot-password-email-help"
                   required
-                  className="w-full px-4 py-3 rounded-xl border border-[#e2bfb2] text-[14px] focus:outline-none focus:ring-2 focus:ring-[#ff6b1a] transition-all"
+                  className={`w-full px-4 py-3 rounded-xl border text-[14px] focus:outline-none focus:ring-2 focus:ring-[#ff6b1a] transition-all ${emailError ? 'border-red-400' : 'border-[#e2bfb2]'}`}
                 />
+                <p id="forgot-password-email-help" aria-live="polite" className={`text-[11px] mt-1 ${emailError ? 'text-red-500' : 'text-gray-500'}`}>
+                  {emailError || `Use the ${UNIVERSITY_EMAIL_SUFFIX} address linked to your account.`}
+                </p>
               </div>
               <button
                 type="submit"
