@@ -1,7 +1,11 @@
 # CampusTrade beginner VPS and evaluation command sheet
 
-This is the short beginner guide for the real CampusTrade VPS. Run only the
+This is the beginner guide for the real CampusTrade VPS. Run only the
 command for the action you need; **do not run every row in a table**.
+
+- **Shut down** leaves that component off until you run its **Start again** row.
+- **Restart** briefly replaces or cycles the component and brings it back by
+  itself; use this when you do not need to demonstrate a lasting failure.
 
 ## 1. Know where to type things
 
@@ -19,16 +23,51 @@ command for the action you need; **do not run every row in a table**.
 | Jenkins | Linux systemd service | VPS terminal with `systemctl` |
 | Ansible | VPS command-line tool | VPS terminal |
 
-## 2. Start every session this way
+## 2. Open and organize your command-line windows
 
-### WINDOWS POWERSHELL - connect to the VPS
+### Step 1 - open three PowerShell windows or tabs
+
+The recommended number is **three**. They let you control, watch, and read logs
+without blocking one another.
+
+1. Press the **Windows** key on your keyboard.
+2. Type `PowerShell`.
+3. Open **Windows PowerShell** or **PowerShell**.
+4. Repeat these steps until three windows are open. If you use Windows Terminal,
+   click the arrow beside **+**, choose **PowerShell** twice, and keep all three
+   PowerShell tabs open.
+5. Keep the windows side by side if your screen has enough space.
+
+| Window | Name it mentally | What it is for |
+|---|---|---|
+| PowerShell 1 | **CONTROL** | The only window allowed to stop, start, restart, scale, or deploy |
+| PowerShell 2 | **WATCH** | Read-only status commands such as `get pods` or `watch` |
+| PowerShell 3 | **LOGS** | Commands that follow logs and keep running until `Ctrl+C` |
+| PowerShell 4, optional | **ANSIBLE** | Open only when demonstrating Ansible; do not deploy from CONTROL at the same time |
+
+One window is enough for a very small task, but do not run a follow-logs command
+there because it occupies the prompt. Three is the safest normal arrangement.
+Four is the maximum recommended arrangement for the evaluation.
+
+Your web browser is separate and does not count as a command-line window. Keep
+it open for Jenkins, SonarQube, Prometheus, and Grafana while the terminals run.
+
+### Step 2 - connect every PowerShell window to the VPS
+
+Paste this same command into **each** PowerShell window:
 
 ```powershell
 ssh -i "C:\Users\kongy\Downloads\campusmarket-test-key.pem" azureuser@4.168.192.5
 ```
 
-Wait until the prompt contains `azureuser@campusmarket-test-vm`, then type the
-next three lines in the **VPS TERMINAL**:
+If the first connection asks whether to trust the host, type `yes` and press
+Enter. A window becomes a **VPS TERMINAL** only after its prompt contains
+`azureuser@campusmarket-test-vm`. Never run the Linux commands at a Windows
+prompt such as `PS C:\...>`.
+
+### Step 3 - prepare every connected VPS terminal
+
+Paste these three lines into **each** connected terminal:
 
 ```bash
 cd /srv/campustrade/current
@@ -36,8 +75,40 @@ alias k='sudo k3s kubectl'
 alias dc='sudo docker compose -p campusmarket --env-file /srv/campustrade/current/backend/.env -f /srv/campustrade/current/backend/docker-compose.prod.yml'
 ```
 
-`k` is the short name for Kubernetes. `dc` is the short name for production
-Docker Compose. Create the aliases again whenever you reconnect.
+`k` means Kubernetes. `dc` means production Docker Compose. Aliases belong only
+to the terminal where you created them, so repeat this preparation after every
+new SSH connection.
+
+### Step 4 - start the read-only windows
+
+In **WATCH**, show application Pods continuously:
+
+```bash
+watch -n 2 'sudo k3s kubectl -n campustrade get pods'
+```
+
+In **LOGS**, follow the service used in the exercise, for example auth:
+
+```bash
+k -n campustrade logs deployment/auth-service --follow
+```
+
+Press `Ctrl+C` to stop `watch` or log following. `Ctrl+C` here stops only the
+display command; it does **not** stop the application service.
+
+### Rules that prevent terminal interference
+
+- Run state-changing commands only in **CONTROL**. WATCH and LOGS stay read-only.
+- Do only one failure exercise at a time and restore it before stopping another
+  service. Extra terminals are for observing, not for causing parallel failures.
+- Never run Ansible, a Jenkins deployment, and manual stop/start commands at the
+  same time.
+- Do not paste a command into a terminal currently showing moving logs. Press
+  `Ctrl+C` or use CONTROL.
+- A changed directory or alias in one terminal does not change another terminal.
+- Closing a terminal does not restore a stopped service. Always run the recovery
+  command and section 4 first.
+- `exit` disconnects only that SSH terminal; it does not shut down the VPS.
 
 ## 3. Browser addresses and logins
 
@@ -82,7 +153,11 @@ stopped service.
 | Application Pods | `k -n campustrade get pods` | `Running`; READY values match, such as `1/1` |
 | Monitoring Pods | `k -n campustrade-observability get pods` | `Running`; READY values match |
 | SonarQube containers | `dc ps sonar-db sonarqube` | Both `Up`; database `healthy` |
-| Application health | `curl -fsS http://127.0.0.1/health` | JSON contains `"status":"ok"` |
+| API gateway process health | `curl -fsS http://127.0.0.1/health` | JSON contains `"status":"ok"` |
+
+The `/health` result proves that the API gateway process responds; it does not
+prove every downstream service is healthy. Use the Pod checks, Prometheus target
+count, and the affected API route together to prove full recovery.
 
 Check all Prometheus targets with this single line:
 
@@ -94,20 +169,59 @@ Healthy output is `11/11 targets up`.
 
 ## 5. Kubernetes application commands
 
-Use `auth-service` for demonstrations. Do not stop `frontend` or `api-gateway`;
-their autoscalers maintain multiple Pods.
+Use only **CONTROL** for this section. `auth-service` is the safest first
+failure demonstration. Restore the selected row before touching another row.
 
-| What you want | One-line VPS command |
-|---|---|
-| List application Pods | `k -n campustrade get pods` |
-| Stop auth service | `k -n campustrade scale deployment/auth-service --replicas=0` |
-| Start auth service | `k -n campustrade scale deployment/auth-service --replicas=1` |
-| Restart auth service | `k -n campustrade rollout restart deployment/auth-service` |
-| Wait until auth is ready | `k -n campustrade rollout status deployment/auth-service --timeout=300s` |
-| Read the last 100 log lines | `k -n campustrade logs deployment/auth-service --tail=100` |
-| Follow live logs | `k -n campustrade logs deployment/auth-service --follow` |
+### Application services with one normal replica
 
-Press `Ctrl+C` to stop following logs.
+| Service | Shut down | Start again | Restart without shutting down first |
+|---|---|---|---|
+| Auth | `k -n campustrade scale deployment/auth-service --replicas=0` | `k -n campustrade scale deployment/auth-service --replicas=1 && k -n campustrade rollout status deployment/auth-service --timeout=300s` | `k -n campustrade rollout restart deployment/auth-service && k -n campustrade rollout status deployment/auth-service --timeout=300s` |
+| User | `k -n campustrade scale deployment/user-service --replicas=0` | `k -n campustrade scale deployment/user-service --replicas=1 && k -n campustrade rollout status deployment/user-service --timeout=300s` | `k -n campustrade rollout restart deployment/user-service && k -n campustrade rollout status deployment/user-service --timeout=300s` |
+| Listing | `k -n campustrade scale deployment/listing-service --replicas=0` | `k -n campustrade scale deployment/listing-service --replicas=1 && k -n campustrade rollout status deployment/listing-service --timeout=300s` | `k -n campustrade rollout restart deployment/listing-service && k -n campustrade rollout status deployment/listing-service --timeout=300s` |
+| Chat | `k -n campustrade scale deployment/chat-service --replicas=0` | `k -n campustrade scale deployment/chat-service --replicas=1 && k -n campustrade rollout status deployment/chat-service --timeout=300s` | `k -n campustrade rollout restart deployment/chat-service && k -n campustrade rollout status deployment/chat-service --timeout=300s` |
+| Admin | `k -n campustrade scale deployment/admin-service --replicas=0` | `k -n campustrade scale deployment/admin-service --replicas=1 && k -n campustrade rollout status deployment/admin-service --timeout=300s` | `k -n campustrade rollout restart deployment/admin-service && k -n campustrade rollout status deployment/admin-service --timeout=300s` |
+| AI | `k -n campustrade scale deployment/ai-service --replicas=0` | `k -n campustrade scale deployment/ai-service --replicas=1 && k -n campustrade rollout status deployment/ai-service --timeout=300s` | `k -n campustrade rollout restart deployment/ai-service && k -n campustrade rollout status deployment/ai-service --timeout=300s` |
+| Search | `k -n campustrade scale deployment/search-service --replicas=0` | `k -n campustrade scale deployment/search-service --replicas=1 && k -n campustrade rollout status deployment/search-service --timeout=300s` | `k -n campustrade rollout restart deployment/search-service && k -n campustrade rollout status deployment/search-service --timeout=300s` |
+| Notification | `k -n campustrade scale deployment/notification-service --replicas=0` | `k -n campustrade scale deployment/notification-service --replicas=1 && k -n campustrade rollout status deployment/notification-service --timeout=300s` | `k -n campustrade rollout restart deployment/notification-service && k -n campustrade rollout status deployment/notification-service --timeout=300s` |
+
+Read or follow a service's logs by replacing `auth-service` with its exact name:
+
+```bash
+k -n campustrade logs deployment/auth-service --tail=100
+k -n campustrade logs deployment/auth-service --follow
+```
+
+### Autoscaled frontend and API gateway
+
+These two Deployments normally have two replicas. Kubernetes puts their existing
+Horizontal Pod Autoscalers into maintenance mode while the desired replica count
+is zero, then reactivates autoscaling when you manually restore two replicas.
+Run the complete **Start again** command before another exercise.
+Stopping either one creates a public application outage, so these are
+**instructor-only, high-impact commands**. For an ordinary demonstration, use
+the restart column or the controlled auth-service exercise instead.
+
+| Service | Shut down | Start again | Restart without shutting down first |
+|---|---|---|---|
+| API gateway | `k -n campustrade scale deployment/api-gateway --replicas=0` | `k -n campustrade scale deployment/api-gateway --replicas=2 && k -n campustrade rollout status deployment/api-gateway --timeout=300s` | `k -n campustrade rollout restart deployment/api-gateway && k -n campustrade rollout status deployment/api-gateway --timeout=300s` |
+| Frontend | `k -n campustrade scale deployment/frontend --replicas=0` | `k -n campustrade scale deployment/frontend --replicas=2 && k -n campustrade rollout status deployment/frontend --timeout=300s` | `k -n campustrade rollout restart deployment/frontend && k -n campustrade rollout status deployment/frontend --timeout=300s` |
+
+### PostgreSQL and Redis data services - instructor-only exercises
+
+Stopping either StatefulSet affects several application services. Scaling to
+zero keeps its persistent volume; deleting its PVC would destroy data and is
+forbidden. Never stop PostgreSQL and Redis together, and never stop either one
+while Jenkins or Ansible is deploying.
+
+| Data service | Shut down | Start again | Restart without shutting down first |
+|---|---|---|---|
+| PostgreSQL | `k -n campustrade scale statefulset/postgres --replicas=0` | `k -n campustrade scale statefulset/postgres --replicas=1 && k -n campustrade rollout status statefulset/postgres --timeout=300s` | `k -n campustrade rollout restart statefulset/postgres && k -n campustrade rollout status statefulset/postgres --timeout=300s` |
+| Redis | `k -n campustrade scale statefulset/redis --replicas=0` | `k -n campustrade scale statefulset/redis --replicas=1 && k -n campustrade rollout status statefulset/redis --timeout=300s` | `k -n campustrade rollout restart statefulset/redis && k -n campustrade rollout status statefulset/redis --timeout=300s` |
+
+After any database recovery, repeat section 4. If application Pods do not
+recover their connections, restart the affected application Deployment using
+the correct row above.
 
 ### Required Kubernetes evaluation flow
 
@@ -119,7 +233,7 @@ service discovery.
 | 1. Scale to two Pods | `k -n campustrade scale deployment/auth-service --replicas=2` |
 | 2. Wait for both Pods | `k -n campustrade rollout status deployment/auth-service --timeout=300s` |
 | 3. Show two ready Pods | `k -n campustrade get pods -l app.kubernetes.io/name=auth-service` |
-| 4. Restore one Pod | `k -n campustrade scale deployment/auth-service --replicas=1` |
+| 4. Restore one Pod | `k -n campustrade scale deployment/auth-service --replicas=1 && k -n campustrade rollout status deployment/auth-service --timeout=300s` |
 | 5. Start a rolling update | `k -n campustrade rollout restart deployment/auth-service` |
 | 6. Prove rollout success | `k -n campustrade rollout status deployment/auth-service --timeout=300s` |
 | 7. Show service discovery | `k -n campustrade get services -o wide` |
@@ -159,44 +273,69 @@ k -n campustrade rollout status deployment/auth-service --timeout=300s
 6. Repeat the first `curl`; it must return `HTTP 400` again. Repeat section 4
    before leaving the exercise.
 
-## 6. SonarQube container and host-service commands
+## 6. Docker containers and Linux host services
 
-### SonarQube Docker container
+Use only **CONTROL** for stop/start/restart. Confirm no Jenkins build is active
+before touching Docker, SonarQube, or K3s.
 
-| What you want | One-line VPS command |
+### SonarQube Docker containers
+
+`sonarqube` depends on `sonar-db`. The database recovery commands therefore
+recover both containers in the correct order.
+
+| Container or group | Shut down | Start again | Restart without shutting down first |
+|---|---|---|---|
+| SonarQube only | `dc stop sonarqube` | `dc up -d sonar-db sonarqube` | `dc restart sonarqube` |
+| Sonar database and SonarQube | `dc stop sonarqube && dc stop sonar-db` | `dc up -d sonar-db sonarqube` | `dc stop sonarqube && dc stop sonar-db && dc up -d sonar-db sonarqube` |
+
+| What you want | Read-only VPS command |
 |---|---|
-| List SonarQube containers | `dc ps -a sonar-db sonarqube` |
-| Stop SonarQube | `dc stop sonarqube` |
-| Start SonarQube | `dc up -d sonar-db sonarqube` |
-| Restart SonarQube | `dc restart sonarqube` |
-| Read logs | `dc logs --tail=100 sonarqube` |
-| Follow logs | `dc logs --follow sonarqube` |
-| Check its API | `curl -fsS http://127.0.0.1:9000/api/system/status` |
+| List both containers | `dc ps -a sonar-db sonarqube` |
+| Read SonarQube logs | `dc logs --tail=100 sonarqube` |
+| Follow SonarQube logs | `dc logs --follow sonarqube` |
+| Check SonarQube readiness | `curl -fsS http://127.0.0.1:9000/api/system/status` |
 
-Confirm Jenkins is not building before stopping SonarQube. It can take 1-2
-minutes to become ready after starting. Never run `docker compose down -v`.
+SonarQube can take 1-2 minutes to report `UP`. Wait automatically with:
 
-### Jenkins and K3s Linux services
+```bash
+until curl -fsS http://127.0.0.1:9000/api/system/status | jq -e '.status == "UP"' >/dev/null; do sleep 5; done
+```
 
-| What you want | One-line VPS command |
+Never run `docker compose down -v`; that would delete persistent data. Also
+never run plain `dc up -d` without the two service names: this production file
+still describes legacy containers that must not run beside K3s.
+
+### Docker, Jenkins, and K3s Linux services
+
+| Host service | Shut down | Start again | Restart without shutting down first |
+|---|---|---|---|
+| Docker engine | `sudo systemctl stop docker.service docker.socket` | `sudo systemctl start docker.socket docker.service` | `sudo systemctl restart docker.service` |
+| Jenkins | `sudo systemctl stop jenkins` | `sudo systemctl start jenkins` | `sudo systemctl restart jenkins` |
+| K3s control plane/API | `sudo systemctl stop k3s` | `sudo systemctl start k3s` | `sudo systemctl restart k3s` |
+
+| What you want | Read-only VPS command |
 |---|---|
+| Docker status | `sudo systemctl status docker.service docker.socket --no-pager` |
+| Docker logs | `sudo journalctl -u docker -n 100 --no-pager` |
 | Jenkins status | `sudo systemctl status jenkins --no-pager` |
-| Stop Jenkins | `sudo systemctl stop jenkins` |
-| Start Jenkins | `sudo systemctl start jenkins` |
-| Restart Jenkins | `sudo systemctl restart jenkins` |
 | Jenkins logs | `sudo journalctl -u jenkins -n 100 --no-pager` |
 | K3s status | `sudo systemctl status k3s --no-pager` |
-| Stop K3s | `sudo systemctl stop k3s` |
-| Start K3s | `sudo systemctl start k3s` |
-| Restart K3s | `sudo systemctl restart k3s` |
 | K3s logs | `sudo journalctl -u k3s -n 100 --no-pager` |
 
-Do not stop Jenkins during a build. Stopping K3s stops the entire application
-and monitoring stack. After starting K3s, run this and then repeat section 4:
+Do not run `dc` commands while the Docker engine is stopped, and do not operate
+the host `containerd` service separately because K3s manages its own container
+runtime. Stopping the K3s service makes `kubectl` and the control plane
+unavailable, but existing Pod containers continue running. It is therefore not
+a service-failure test and not a complete application shutdown. After starting
+K3s, run the next command and then repeat section 4:
 
 ```bash
 k wait --for=condition=Ready node --all --timeout=180s
 ```
+
+Do not stop Traefik, CoreDNS, metrics-server, or local-path-provisioner one by
+one. They are K3s-managed cluster internals and are not part of a service-failure
+exercise.
 
 ## 7. Jenkins, Prometheus, and Grafana
 
@@ -216,22 +355,43 @@ it does not replace the required tests or minimum 80% coverage.
 
 ### VPS TERMINAL - monitoring operations
 
-| What you want | One-line VPS command |
+| Monitoring service | Shut down | Start again | Restart without shutting down first |
+|---|---|---|---|
+| Prometheus | `k -n campustrade-observability scale deployment/prometheus --replicas=0` | `k -n campustrade-observability scale deployment/prometheus --replicas=1 && k -n campustrade-observability rollout status deployment/prometheus --timeout=300s` | `k -n campustrade-observability rollout restart deployment/prometheus && k -n campustrade-observability rollout status deployment/prometheus --timeout=300s` |
+| Grafana | `k -n campustrade-observability scale deployment/grafana --replicas=0` | `k -n campustrade-observability scale deployment/grafana --replicas=1 && k -n campustrade-observability rollout status deployment/grafana --timeout=300s` | `k -n campustrade-observability rollout restart deployment/grafana && k -n campustrade-observability rollout status deployment/grafana --timeout=300s` |
+| Jenkins/Sonar edge proxy | `k -n campustrade-observability scale deployment/platform-edge-proxy --replicas=0` | `k -n campustrade-observability scale deployment/platform-edge-proxy --replicas=1 && k -n campustrade-observability rollout status deployment/platform-edge-proxy --timeout=300s` | `k -n campustrade-observability rollout restart deployment/platform-edge-proxy && k -n campustrade-observability rollout status deployment/platform-edge-proxy --timeout=300s` |
+
+Stopping Prometheus pauses metric collection and alert evaluation. Stopping
+Grafana hides dashboards but does not stop collection. Stopping the edge proxy
+hides only the public Jenkins and SonarQube routes; those services keep running,
+and the public Prometheus and Grafana routes continue working directly.
+
+The node exporter is a DaemonSet rather than a Deployment. Its instructor-only
+shutdown command temporarily asks it to run only on a deliberately nonexistent
+node label; the start command removes that selector. Kubernetes may print a
+Pod Security warning during the patch because node exporter reads host metrics.
+
+| Node exporter action | One-line VPS command |
 |---|---|
-| Monitoring status | `k -n campustrade-observability get pods` |
-| Stop Prometheus | `k -n campustrade-observability scale deployment/prometheus --replicas=0` |
-| Start Prometheus | `k -n campustrade-observability scale deployment/prometheus --replicas=1` |
-| Restart Prometheus | `k -n campustrade-observability rollout restart deployment/prometheus` |
+| Shut down | `k -n campustrade-observability patch daemonset/node-exporter --type=merge -p '{"spec":{"template":{"spec":{"nodeSelector":{"campustrade.io/maintenance":"disabled"}}}}}'` |
+| Start again | `k -n campustrade-observability patch daemonset/node-exporter --type=merge -p '{"spec":{"template":{"spec":{"nodeSelector":null}}}}' && k -n campustrade-observability rollout status daemonset/node-exporter --timeout=300s` |
+| Restart | `k -n campustrade-observability rollout restart daemonset/node-exporter && k -n campustrade-observability rollout status daemonset/node-exporter --timeout=300s` |
+
+| What you want | Read-only VPS command |
+|---|---|
+| Monitoring status | `k -n campustrade-observability get deployments,daemonsets,pods` |
 | Prometheus logs | `k -n campustrade-observability logs deployment/prometheus --tail=100` |
-| Stop Grafana | `k -n campustrade-observability scale deployment/grafana --replicas=0` |
-| Start Grafana | `k -n campustrade-observability scale deployment/grafana --replicas=1` |
-| Restart Grafana | `k -n campustrade-observability rollout restart deployment/grafana` |
 | Grafana logs | `k -n campustrade-observability logs deployment/grafana --tail=100` |
+| Jenkins/Sonar proxy logs | `k -n campustrade-observability logs deployment/platform-edge-proxy --tail=100` |
+| Node exporter logs | `k -n campustrade-observability logs daemonset/node-exporter --tail=100` |
 
 For evidence, show 11/11 Prometheus targets, alert rules, and Grafana panels for
 availability, traffic, errors, latency, CPU, memory, and disk.
 
-## 8. The two required Ansible playbooks
+## 8. CampusTrade's two Ansible playbooks for the required evidence
+
+The evaluation requires at least two playbooks. The following two files are the
+playbooks implemented by CampusTrade to satisfy that requirement.
 
 The provisioning playbook restarts Jenkins, so both playbooks require the safety
 check below.
@@ -292,6 +452,7 @@ commands during a normal demonstration:
 
 ```text
 docker compose down -v
+dc up -d
 docker volume rm ...
 k delete pvc ...
 rm -rf /srv/campustrade
