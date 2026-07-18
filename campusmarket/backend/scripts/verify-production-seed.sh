@@ -20,22 +20,42 @@ source "$production_env"
 counts="$(k3s kubectl -n campustrade exec postgres-0 -- \
   psql -At -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -c \
   "SELECT
-    (SELECT count(*) FROM users WHERE email LIKE '%@campustrade.local'),
+    (SELECT count(*) FROM users WHERE email ~ '^[a-z0-9._%+-]+@ictuniversity[.]edu[.]cm$'),
+    (SELECT count(*) FROM users WHERE email !~ '^[a-z0-9._%+-]+@ictuniversity[.]edu[.]cm$'),
     (SELECT count(*) FROM listings WHERE id::text LIKE '10000000-0000-4000-8000-%'),
     (SELECT count(*) FROM listings WHERE id::text LIKE '10000000-0000-4000-8000-%' AND status='active'),
     (SELECT count(*) FROM listing_images WHERE listing_id::text LIKE '10000000-0000-4000-8000-%'),
     (SELECT count(*) FROM search_index WHERE listing_id::text LIKE '10000000-0000-4000-8000-%'),
     (SELECT count(*) FROM offers WHERE id::text LIKE '20000000-0000-4000-8000-%'),
-    (SELECT count(*) FROM messages WHERE id::text LIKE '31000000-0000-4000-8000-%');")"
-IFS='|' read -r user_count listing_count active_count image_count search_count offer_count message_count <<<"$counts"
+    (SELECT count(*) FROM messages WHERE id::text LIKE '31000000-0000-4000-8000-%'),
+    (SELECT count(*) FROM transactions t JOIN listings l ON l.id=t.listing_id
+      WHERE t.id IN (
+        '40000000-0000-4000-8000-000000000002',
+        '40000000-0000-4000-8000-000000000003',
+        '40000000-0000-4000-8000-000000000004')
+        AND l.category='Electronics' AND l.status='sold'
+        AND t.completed_at >= NOW() - INTERVAL '90 days'),
+    (SELECT count(*) FROM listings
+      WHERE id::text LIKE '10000000-0000-4000-8000-%'
+        AND status='active' AND expires_at <= NOW() + INTERVAL '300 days'),
+    (SELECT count(*) FROM search_index s JOIN listings l ON l.id=s.listing_id
+      WHERE s.listing_id::text LIKE '10000000-0000-4000-8000-%' AND l.status <> 'active');")"
+IFS='|' read -r \
+  user_count invalid_user_count listing_count active_count image_count search_count \
+  offer_count message_count electronics_history_count expiring_active_count inactive_search_count \
+  <<<"$counts"
 
 [[ "$user_count" -ge 6 ]]
-[[ "$listing_count" == 12 ]]
+[[ "$invalid_user_count" == 0 ]]
+[[ "$listing_count" == 15 ]]
 [[ "$active_count" == 10 ]]
-[[ "$image_count" -ge 12 ]]
-[[ "$search_count" == 12 ]]
+[[ "$image_count" -ge 16 ]]
+[[ "$search_count" == "$active_count" ]]
 [[ "$offer_count" == 2 ]]
 [[ "$message_count" == 2 ]]
+[[ "$electronics_history_count" == 3 ]]
+[[ "$expiring_active_count" == 0 ]]
+[[ "$inactive_search_count" == 0 ]]
 
 for expected_email in \
   "$CAMPUSTRADE_ADMIN_EMAIL" "$CAMPUSTRADE_DEMO_EMAIL" \
@@ -69,5 +89,6 @@ first_image="$(jq -r '.[0].images[0]' <<<"$listings_json")"
 [[ "$first_image" == https://images.unsplash.com/* ]]
 curl -fsSL --retry 3 --max-time 20 --range 0-1023 "$first_image" -o /dev/null
 
-printf 'Production seed verified: users=%s listings=%s active=%s images=%s search=%s offers=%s messages=%s\n' \
-  "$user_count" "$listing_count" "$active_count" "$image_count" "$search_count" "$offer_count" "$message_count"
+printf 'Production seed verified: university_users=%s listings=%s active=%s images=%s search=%s electronics_history=%s offers=%s messages=%s\n' \
+  "$user_count" "$listing_count" "$active_count" "$image_count" "$search_count" \
+  "$electronics_history_count" "$offer_count" "$message_count"

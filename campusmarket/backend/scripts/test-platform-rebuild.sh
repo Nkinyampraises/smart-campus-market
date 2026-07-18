@@ -167,10 +167,12 @@ fi
 for script in \
   generate-production-env.sh bootstrap-jenkins.sh rebuild-vps-from-scratch.sh \
   seed-production-data.sh verify-production-seed.sh smoke-test-running.sh \
-  provision-operator-accounts.sh sync-ansible-source.sh
+  provision-operator-accounts.sh sync-ansible-source.sh \
+  migrate-university-emails.sh test-university-data-migration.sh
 do
   bash -n "$scripts_dir/$script"
 done
 bash -n "$root_dir/k8s/scripts/deploy.sh"
+bash "$scripts_dir/test-university-data-migration.sh"
 
 echo 'Platform rebuild automation tests passed.'

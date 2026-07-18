@@ -30,9 +30,9 @@ if [[ ! -f "$credential_file" ]]; then
     printf 'GRAFANA_PASSWORD=%s\n' "$(new_password)"
     printf 'SONAR_USERNAME=campustrade-admin\n'
     printf 'SONAR_PASSWORD=%s\n' "$(new_password)"
-    printf 'CAMPUSTRADE_ADMIN_EMAIL=admin@campustrade.local\n'
+    printf 'CAMPUSTRADE_ADMIN_EMAIL=admin@ictuniversity.edu.cm\n'
     printf 'CAMPUSTRADE_ADMIN_PASSWORD=%s\n' "$(new_password)"
-    printf 'CAMPUSTRADE_DEMO_EMAIL=demo.student@campustrade.local\n'
+    printf 'CAMPUSTRADE_DEMO_EMAIL=demo.student@ictuniversity.edu.cm\n'
     printf 'CAMPUSTRADE_DEMO_PASSWORD=%s\n' "$(new_password)"
     printf 'CREATED_AT=%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   } | install -o root -g root -m 0600 /dev/stdin "$credential_file"
@@ -46,13 +46,13 @@ ensure_credential() {
   fi
 }
 
-ensure_credential SEED_USER_1_EMAIL 'amina.nfor@campustrade.local'
+ensure_credential SEED_USER_1_EMAIL 'amina.nfor@ictuniversity.edu.cm'
 ensure_credential SEED_USER_1_PASSWORD "$(new_password)"
-ensure_credential SEED_USER_2_EMAIL 'joel.tamba@campustrade.local'
+ensure_credential SEED_USER_2_EMAIL 'joel.tamba@ictuniversity.edu.cm'
 ensure_credential SEED_USER_2_PASSWORD "$(new_password)"
-ensure_credential SEED_USER_3_EMAIL 'grace.mbi@campustrade.local'
+ensure_credential SEED_USER_3_EMAIL 'grace.mbi@ictuniversity.edu.cm'
 ensure_credential SEED_USER_3_PASSWORD "$(new_password)"
-ensure_credential SEED_USER_4_EMAIL 'eric.nji@campustrade.local'
+ensure_credential SEED_USER_4_EMAIL 'eric.nji@ictuniversity.edu.cm'
 ensure_credential SEED_USER_4_PASSWORD "$(new_password)"
 
 # shellcheck disable=SC1090

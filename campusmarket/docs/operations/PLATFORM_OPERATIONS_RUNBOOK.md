@@ -66,8 +66,8 @@ logins; Prometheus is protected by Traefik BasicAuth.
 | Grafana | `campustrade-admin` |
 | SonarQube | `campustrade-admin` |
 | Prometheus | value of `PROMETHEUS_USERNAME` in the protected credential file |
-| CampusTrade administrator | `admin@campustrade.local` |
-| CampusTrade demonstration student | `demo.student@campustrade.local` |
+| CampusTrade administrator | `admin@ictuniversity.edu.cm` |
+| CampusTrade demonstration student | `demo.student@ictuniversity.edu.cm` |
 | VPS SSH | `azureuser` with the private key |
 
 Passwords are generated independently and stored only in this root-readable

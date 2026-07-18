@@ -1,91 +1,101 @@
-# Implementation Plan: Clean VPS Rebuild and Production Seed Data
+# Implementation Plan: Claude AI and ICT University Identity Policy
 
-## Overview
+## Outcome
 
-Rebuild the CampusTrade platform from an empty application state on the Azure
-VPS while preserving only the operating system, SSH access, and externally
-managed integration values that cannot be recreated. The rebuild will rotate
-internal secrets, reinstall Jenkins and its plugins, recreate SonarQube and K3s
-state, run every code/test/coverage gate on the VPS, enforce the SonarQube
-quality gate, deploy immutable images, and populate repeatable demonstration
-users and image-backed marketplace data.
+Deploy a production-safe CampusTrade release that uses Anthropic Claude for
+on-demand listing price guidance, accepts only `@ictuniversity.edu.cm`
+application identities, migrates all existing users without losing related
+data, refreshes durable demonstration data, and leaves Jenkins, SonarQube,
+Kubernetes, monitoring, and the application healthy on the VPS.
 
-## Architecture Decisions
+## Safety and Architecture Decisions
 
-- GitHub `main` is the only source of application and infrastructure code.
-- Jenkins on the VPS runs lint, tests, coverage, audits, SonarQube analysis,
-  image builds, Trivy scans, K3s deployment, and production smoke tests.
-- SonarQube analyzes Jenkins-produced coverage; it does not replace the test
-  runner.
-- Internal database, JWT, Grafana, Jenkins, SonarQube, and demo credentials are
-  regenerated. External SMTP/OAuth values may be carried forward without being
-  printed.
-- Seed provisioning is idempotent and uses authenticated application APIs for
-  credential-bearing users. Versioned, parameterized SQL creates deterministic
-  marketplace and relational demonstration records after those users exist.
-- Destructive reset requires an exact confirmation token and deletes only
-  CampusTrade/Jenkins/SonarQube/K3s state, never SSH or the base operating system.
+- Perform all runtime tests, database work, builds, SonarQube analysis, and
+  deployments on the VPS. The local workspace is source editing only.
+- Use two ordered releases. First ship and execute the backward-compatible
+  identity/seed migration. Only then deploy strict domain enforcement.
+- Update users in place so UUID-backed listings, messages, roles, password
+  hashes, and transactions remain intact. Back up PostgreSQL and the protected
+  credential file before migration.
+- Store the Anthropic key only in a root-protected VPS file and a dedicated
+  Kubernetes Secret mounted by `ai-service`; never place it in Git, logs,
+  screenshots, the shared application Secret, or other pods.
+- Keep deterministic market calculations as the numerical guardrail. Claude
+  produces a bounded explanation from sanitized category, condition, and price
+  aggregates. Claude is never the authority for fraud enforcement or SQL.
+- Invoke Claude only through an explicit UI action, with rate limiting, a short
+  timeout, bounded retries/output, response validation, and honest failure UI.
+- Refresh the Jenkins production file credential whenever canonical protected
+  configuration changes, so a later pipeline cannot restore stale settings.
+- Restart components in dependency order with readiness checks; do not perform
+  an uncoordinated full outage.
 
-## Task List
+## Delivery Phases
 
-### Phase 1: Rebuild foundation
+### Phase 1: Backward-compatible migration release
 
-- [x] Add fail-closed production secret generation and a reproducible Jenkins
-  plugin manifest/bootstrap.
-- [x] Add a guarded VPS reset/rebuild orchestrator with post-reset readiness
-  checks.
+- [ ] Add failing VPS tests for exact domain normalization, identity migration,
+  durable seeds, and active/search-index invariants.
+- [ ] Add an idempotent university-email migration that creates a root-only
+  audit mapping, updates known credential emails atomically, and preserves all
+  user relationships.
+- [ ] Change new operator and seed defaults to the ICT University domain.
+- [ ] Add at least three completed Electronics comparisons, long-lived demo
+  expiries, images, and matching search-index records.
+- [ ] Pass targeted VPS tests, full Jenkins/SonarQube gates, review, commit, and
+  deploy the migration release.
+- [ ] Back up production, execute migration, reseed, and verify all application
+  users are normalized ICT University accounts before enforcement.
 
-### Checkpoint: Foundation
+### Phase 2: Strict authentication and Claude release
 
-- [x] Shell syntax and manifest checks pass on the VPS.
-- [ ] Current Jenkins/SonarQube pipeline validates the rebuild automation before
-  destructive execution.
+- [ ] Add failing VPS tests for backend, Google OAuth, event-consumer, database,
+  gateway, and frontend acceptance behavior.
+- [ ] Enforce the exact university domain across registration, login, recovery,
+  Google OAuth, user events, and database constraints; fix normalized login
+  responses and client guidance.
+- [ ] Implement a validated Claude client and protected price-guidance endpoint,
+  rate limiting, timeout/error handling, and configuration health metadata.
+- [ ] Connect both listing creation journeys to an explicit “Ask Claude” action
+  with accessible loading, success, unavailable, and retry states.
+- [ ] Create a dedicated AI-provider Kubernetes Secret and update environment,
+  deploy, smoke-test, and operations contracts without exposing the key.
+- [ ] Pass targeted VPS tests, complete Jenkins/SonarQube/security gates, code
+  review, commit, and deploy.
 
-### Phase 2: Production seed slice
+### Phase 3: Production acceptance
 
-- [x] Add idempotent demo-account and marketplace seed provisioning.
-- [x] Seed multiple sellers, buyers, listings, images, wishlists, offers,
-  conversations, messages, reviews, transactions, notifications, and moderation
-  examples.
-- [x] Add remote verification for counts, image URLs, API visibility, login, and
-  role correctness.
+- [ ] Verify university registration/login/recovery and Google-domain rejection.
+- [ ] Run an authenticated Claude canary and verify provider/model metadata,
+  bounded output, seed-backed comparisons, and rate-limit behavior.
+- [ ] Run seed verification twice to prove idempotency and zero search drift.
+- [ ] Perform controlled Kubernetes/service restarts and verify rollouts,
+  database/Redis persistence, Prometheus targets, Grafana, Jenkins, SonarQube,
+  public routes, and application health.
+- [ ] Confirm the Git worktree, GitHub main branch, deployed revision, and
+  production evidence are synchronized with no local runtime services.
 
-### Checkpoint: Seed data
+## Acceptance Criteria
 
-- [x] Seed verification fails before provisioning on a clean database.
-- [x] Seed provisioning succeeds twice without duplicates.
-- [x] Public listing APIs return populated image-backed results.
+- Every `users.email` is lowercase, normalized, unique, and ends exactly in
+  `@ictuniversity.edu.cm`; no old-domain or Gmail application account remains.
+- Existing user IDs, roles, password hashes, and relationship counts are
+  unchanged by migration, except for intentional new seed records.
+- External-domain registration/login and Google OAuth fail before password or
+  database work; university accounts and operator credentials still work.
+- Price guidance makes a real Anthropic request from `ai-service`, returns
+  validated FCFA guidance and a short Claude explanation, and fails clearly
+  without mislabeling a deterministic fallback as Claude.
+- Only the AI pod can read the Anthropic key, and secret scans/log inspection
+  find no committed or printed key material.
+- Jenkins is green, SonarQube quality gate passes, smoke/seed/canary checks pass,
+  and all production links and monitoring targets are healthy after restart.
 
-### Phase 3: Destructive rebuild
+## Rollback
 
-- [ ] Stop active services and remove K3s, Jenkins, SonarQube, application,
-  monitoring, Docker image/cache, and database state.
-- [ ] Reinstall/reconfigure Jenkins, SonarQube, K3s, protected credentials, and
-  the GitHub-backed pipeline from the clean state.
-- [ ] Run the complete VPS-only Jenkins pipeline with SonarQube and deployment
-  enabled.
-
-### Phase 4: Production acceptance
-
-- [ ] Provision operator accounts and production seed data.
-- [ ] Verify application flows, all service health, Prometheus targets, Grafana,
-  SonarQube, Jenkins, TLS assets, and public links.
-- [ ] Capture fresh evidence, update the operations runbook, and leave Git and
-  the VPS synchronized with no local runtime services.
-
-## Risks and Mitigations
-
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Losing SSH access | Critical | Never modify SSH users, keys, port 22, or base networking |
-| Rebuild cannot recreate CI | High | Validate plugin/bootstrap automation in the current VPS before wiping |
-| Secret leakage | High | Root-only files, `no_log`, no credential output, and pre-commit secret scan |
-| Seed duplication | Medium | Deterministic identities, conflict-safe operations, and a second-run test |
-| Third-party image failure | Medium | Use fixed HTTPS image URLs already supported by the production UI |
-| Destructive command targets wrong host | Critical | Require the expected public IP, deployment root, and exact confirmation token |
-
-## Approval
-
-The user's explicit request to delete the existing VPS platform state, rebuild it,
-deploy it, and seed production data authorizes execution of this plan within the
-guardrails above.
+- Restore the protected credential backup and database snapshot if migration
+  verification fails before strict enforcement.
+- Keep the previous immutable application images and Kubernetes revisions; use
+  `kubectl rollout undo` per deployment if the second release fails.
+- Remove only the dedicated AI Secret and roll back `ai-service` if Claude
+  integration fails; authentication and marketplace data remain independent.

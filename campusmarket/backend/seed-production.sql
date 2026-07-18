@@ -24,40 +24,49 @@ INSERT INTO listings
 VALUES
   ('10000000-0000-4000-8000-000000000001', (SELECT id FROM users WHERE email=:'seed_user_1_email'),
    'MacBook Air M2 13-inch', 'Clean 2022 MacBook Air with 8 GB RAM, 256 GB SSD, original charger, and 91% battery health.',
-   'Electronics', 525000, 'Like New', 'Main Campus', '["laptop","apple","study"]', 'active', 148, NOW()-INTERVAL '2 days', NOW(), NOW()+INTERVAL '28 days'),
+   'Electronics', 525000, 'Like New', 'Main Campus', '["laptop","apple","study"]', 'active', 148, NOW()-INTERVAL '2 days', NOW(), NOW()+INTERVAL '365 days'),
   ('10000000-0000-4000-8000-000000000002', (SELECT id FROM users WHERE email=:'seed_user_1_email'),
    'Casio FX-991ES Plus Calculator', 'Original scientific calculator in excellent working condition with protective cover.',
-   'Electronics', 14500, 'Good', 'Main Campus', '["calculator","engineering","exam"]', 'active', 72, NOW()-INTERVAL '1 day', NOW(), NOW()+INTERVAL '29 days'),
+   'Electronics', 14500, 'Good', 'Main Campus', '["calculator","engineering","exam"]', 'active', 72, NOW()-INTERVAL '1 day', NOW(), NOW()+INTERVAL '365 days'),
   ('10000000-0000-4000-8000-000000000003', (SELECT id FROM users WHERE email=:'seed_user_2_email'),
    'Calculus and Linear Algebra Textbook Set', 'Two clean university textbooks with useful margin notes and no missing pages.',
-   'Textbooks', 18000, 'Good', 'North Campus', '["books","mathematics","first-year"]', 'active', 63, NOW()-INTERVAL '4 days', NOW(), NOW()+INTERVAL '26 days'),
+   'Textbooks', 18000, 'Good', 'North Campus', '["books","mathematics","first-year"]', 'active', 63, NOW()-INTERVAL '4 days', NOW(), NOW()+INTERVAL '365 days'),
   ('10000000-0000-4000-8000-000000000004', (SELECT id FROM users WHERE email=:'seed_user_2_email'),
    'Campus Commuter Bicycle', 'Reliable 7-speed bicycle, recently serviced, with lock, lights, and rear carrier included.',
-   'Transport', 95000, 'Good', 'North Campus', '["bicycle","transport","eco"]', 'active', 121, NOW()-INTERVAL '3 days', NOW(), NOW()+INTERVAL '27 days'),
+   'Transport', 95000, 'Good', 'North Campus', '["bicycle","transport","eco"]', 'active', 121, NOW()-INTERVAL '3 days', NOW(), NOW()+INTERVAL '365 days'),
   ('10000000-0000-4000-8000-000000000005', (SELECT id FROM users WHERE email=:'seed_user_2_email'),
    'Compact Hostel Mini Refrigerator', 'Energy-saving 90-litre mini refrigerator, quiet and ideal for a student room.',
-   'Housing', 85000, 'Good', 'North Campus', '["hostel","appliance","fridge"]', 'reserved', 94, NOW()-INTERVAL '6 days', NOW(), NOW()+INTERVAL '24 days'),
+   'Housing', 85000, 'Good', 'North Campus', '["hostel","appliance","fridge"]', 'reserved', 94, NOW()-INTERVAL '6 days', NOW(), NOW()+INTERVAL '365 days'),
   ('10000000-0000-4000-8000-000000000006', (SELECT id FROM users WHERE email=:'seed_user_3_email'),
    'Nike Running Shoes Size 42', 'Authentic lightweight trainers worn twice; clean soles and original box available.',
-   'Shoes', 32000, 'Like New', 'South Campus', '["shoes","sport","nike"]', 'active', 87, NOW()-INTERVAL '5 hours', NOW(), NOW()+INTERVAL '30 days'),
+   'Shoes', 32000, 'Like New', 'South Campus', '["shoes","sport","nike"]', 'active', 87, NOW()-INTERVAL '5 hours', NOW(), NOW()+INTERVAL '365 days'),
   ('10000000-0000-4000-8000-000000000007', (SELECT id FROM users WHERE email=:'seed_user_3_email'),
    'Handmade Ankara Bomber Jacket', 'Locally made unisex Ankara jacket with a soft lining and durable metal zip.',
-   'Clothing', 27500, 'New', 'South Campus', '["fashion","ankara","handmade"]', 'active', 103, NOW()-INTERVAL '12 hours', NOW(), NOW()+INTERVAL '30 days'),
+   'Clothing', 27500, 'New', 'South Campus', '["fashion","ankara","handmade"]', 'active', 103, NOW()-INTERVAL '12 hours', NOW(), NOW()+INTERVAL '365 days'),
   ('10000000-0000-4000-8000-000000000008', (SELECT id FROM users WHERE email=:'seed_user_3_email'),
    'Luxury Perfume Discovery Set', 'Five sealed 10 ml fragrances in a gift box; ideal for sampling or gifting.',
-   'Perfumes', 22000, 'New', 'South Campus', '["perfume","gift","beauty"]', 'active', 55, NOW()-INTERVAL '1 day', NOW(), NOW()+INTERVAL '29 days'),
+   'Perfumes', 22000, 'New', 'South Campus', '["perfume","gift","beauty"]', 'active', 55, NOW()-INTERVAL '1 day', NOW(), NOW()+INTERVAL '365 days'),
   ('10000000-0000-4000-8000-000000000009', (SELECT id FROM users WHERE email=:'seed_user_3_email'),
    'Custom Beaded Bracelet Pair', 'Two adjustable handmade bracelets; colour and name customisation included.',
-   'Bracelets', 6500, 'New', 'South Campus', '["bracelet","custom","gift"]', 'active', 44, NOW()-INTERVAL '8 hours', NOW(), NOW()+INTERVAL '30 days'),
+   'Bracelets', 6500, 'New', 'South Campus', '["bracelet","custom","gift"]', 'active', 44, NOW()-INTERVAL '8 hours', NOW(), NOW()+INTERVAL '365 days'),
   ('10000000-0000-4000-8000-000000000010', (SELECT id FROM users WHERE email=:'seed_user_1_email'),
    'Fresh Tropical Fruit Salad Bowl', 'Chilled single-serving fruit bowl prepared the same day; campus delivery available.',
-   'Fruit Salad', 2500, 'New', 'Main Campus', '["food","fresh","delivery"]', 'active', 162, NOW()-INTERVAL '2 hours', NOW(), NOW()+INTERVAL '2 days'),
+   'Fruit Salad', 2500, 'New', 'Main Campus', '["food","fresh","delivery"]', 'active', 162, NOW()-INTERVAL '2 hours', NOW(), NOW()+INTERVAL '365 days'),
   ('10000000-0000-4000-8000-000000000011', (SELECT id FROM users WHERE email=:'seed_user_3_email'),
    'Weekend Poster and Logo Design', 'Student-friendly graphic design package with two concepts and two revisions.',
-   'Services', 15000, 'New', 'South Campus', '["design","logo","poster"]', 'active', 76, NOW()-INTERVAL '7 days', NOW(), NOW()+INTERVAL '23 days'),
+   'Services', 15000, 'New', 'South Campus', '["design","logo","poster"]', 'active', 76, NOW()-INTERVAL '7 days', NOW(), NOW()+INTERVAL '365 days'),
   ('10000000-0000-4000-8000-000000000012', (SELECT id FROM users WHERE email=:'seed_user_1_email'),
    '20000mAh USB-C Power Bank', 'Fast-charging power bank with two USB outputs, USB-C input, cable, and LED display.',
-   'Accessories', 19500, 'Like New', 'Main Campus', '["powerbank","phone","charging"]', 'sold', 133, NOW()-INTERVAL '10 days', NOW(), NOW()+INTERVAL '20 days')
+   'Accessories', 19500, 'Like New', 'Main Campus', '["powerbank","phone","charging"]', 'sold', 133, NOW()-INTERVAL '10 days', NOW(), NOW()+INTERVAL '365 days'),
+  ('10000000-0000-4000-8000-000000000013', (SELECT id FROM users WHERE email=:'seed_user_2_email'),
+   'MacBook Air M1 2020', 'Completed campus sale retained as anonymised comparison history for AI-assisted pricing.',
+   'Electronics', 430000, 'Good', 'North Campus', '["laptop","apple","comparison"]', 'sold', 118, NOW()-INTERVAL '42 days', NOW(), NOW()+INTERVAL '365 days'),
+  ('10000000-0000-4000-8000-000000000014', (SELECT id FROM users WHERE email=:'seed_user_3_email'),
+   'MacBook Pro 13-inch 2020', 'Completed campus sale retained as anonymised comparison history for AI-assisted pricing.',
+   'Electronics', 485000, 'Like New', 'South Campus', '["laptop","apple","comparison"]', 'sold', 139, NOW()-INTERVAL '25 days', NOW(), NOW()+INTERVAL '365 days'),
+  ('10000000-0000-4000-8000-000000000015', (SELECT id FROM users WHERE email=:'seed_user_1_email'),
+   'Dell XPS 13 9310', 'Completed campus sale retained as anonymised comparison history for AI-assisted pricing.',
+   'Electronics', 395000, 'Good', 'Main Campus', '["laptop","dell","comparison"]', 'sold', 101, NOW()-INTERVAL '12 days', NOW(), NOW()+INTERVAL '365 days')
 ON CONFLICT (id) DO UPDATE SET
   seller_id=EXCLUDED.seller_id, title=EXCLUDED.title, description=EXCLUDED.description,
   category=EXCLUDED.category, price_fcfa=EXCLUDED.price_fcfa, condition=EXCLUDED.condition,
@@ -78,11 +87,17 @@ INSERT INTO listing_images (listing_id, image_url, sort_order) VALUES
   ('10000000-0000-4000-8000-000000000009','https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=1200&h=900&fit=crop&q=85',0),
   ('10000000-0000-4000-8000-000000000010','https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=1200&h=900&fit=crop&q=85',0),
   ('10000000-0000-4000-8000-000000000011','https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&h=900&fit=crop&q=85',0),
-  ('10000000-0000-4000-8000-000000000012','https://images.unsplash.com/photo-1609592424824-43e0a55eab54?w=1200&h=900&fit=crop&q=85',0);
+  ('10000000-0000-4000-8000-000000000012','https://images.unsplash.com/photo-1609592424824-43e0a55eab54?w=1200&h=900&fit=crop&q=85',0),
+  ('10000000-0000-4000-8000-000000000013','https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=1200&h=900&fit=crop&q=85',0),
+  ('10000000-0000-4000-8000-000000000014','https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200&h=900&fit=crop&q=85',0),
+  ('10000000-0000-4000-8000-000000000015','https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=1200&h=900&fit=crop&q=85',0);
 
+DELETE FROM search_index WHERE listing_id::text LIKE '10000000-0000-4000-8000-%';
 INSERT INTO search_index (listing_id, search_vector, updated_at)
 SELECT id, to_tsvector('english', concat_ws(' ', title, description, category, campus_zone, tags::text)), NOW()
-FROM listings WHERE id::text LIKE '10000000-0000-4000-8000-%'
+FROM listings
+WHERE id::text LIKE '10000000-0000-4000-8000-%'
+  AND status='active'
 ON CONFLICT (listing_id) DO UPDATE SET search_vector=EXCLUDED.search_vector, updated_at=NOW();
 
 INSERT INTO wishlist (user_id, listing_id)
@@ -104,8 +119,14 @@ INSERT INTO messages (id, conversation_id, sender_id, text, type, is_read, creat
 ON CONFLICT (id) DO UPDATE SET text=EXCLUDED.text, is_read=EXCLUDED.is_read;
 
 INSERT INTO transactions (id, listing_id, buyer_id, seller_id, final_price, completed_at) VALUES
-  ('40000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000012',(SELECT id FROM users WHERE email=:'seed_user_4_email'),(SELECT id FROM users WHERE email=:'seed_user_1_email'),18000,NOW()-INTERVAL '4 days')
-ON CONFLICT (id) DO UPDATE SET final_price=EXCLUDED.final_price;
+  ('40000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000012',(SELECT id FROM users WHERE email=:'seed_user_4_email'),(SELECT id FROM users WHERE email=:'seed_user_1_email'),18000,NOW()-INTERVAL '4 days'),
+  ('40000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000013',(SELECT id FROM users WHERE email=:'demo_email'),(SELECT id FROM users WHERE email=:'seed_user_2_email'),420000,NOW()-INTERVAL '40 days'),
+  ('40000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000014',(SELECT id FROM users WHERE email=:'seed_user_4_email'),(SELECT id FROM users WHERE email=:'seed_user_3_email'),472000,NOW()-INTERVAL '23 days'),
+  ('40000000-0000-4000-8000-000000000004','10000000-0000-4000-8000-000000000015',(SELECT id FROM users WHERE email=:'demo_email'),(SELECT id FROM users WHERE email=:'seed_user_1_email'),388000,NOW()-INTERVAL '10 days')
+ON CONFLICT (id) DO UPDATE SET
+  listing_id=EXCLUDED.listing_id, buyer_id=EXCLUDED.buyer_id,
+  seller_id=EXCLUDED.seller_id, final_price=EXCLUDED.final_price,
+  completed_at=EXCLUDED.completed_at;
 INSERT INTO reviews (id, reviewer_id, seller_id, rating, comment, created_at) VALUES
   ('41000000-0000-4000-8000-000000000001',(SELECT id FROM users WHERE email=:'seed_user_4_email'),(SELECT id FROM users WHERE email=:'seed_user_1_email'),5,'Item matched the description and pickup was easy.',NOW()-INTERVAL '3 days')
 ON CONFLICT (id) DO UPDATE SET rating=EXCLUDED.rating, comment=EXCLUDED.comment;
