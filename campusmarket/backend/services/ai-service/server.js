@@ -30,7 +30,15 @@ const CLAUDE_QUOTA_SCRIPT = `
   end
   return count
 `;
-const NUMBER_WORD_PATTERN = /\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|hundredth|thousandth|millionth|billionth|trillionth|dozen|half|quarter|single|double|triple|once|twice)\b/i;
+const NUMBER_WORDS = new Set(`
+  zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen
+  fifteen sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy
+  eighty ninety hundred thousand million billion trillion first second third fourth
+  fifth sixth seventh eighth ninth tenth eleventh twelfth thirteenth fourteenth fifteenth
+  sixteenth seventeenth eighteenth nineteenth twentieth hundredth thousandth millionth
+  billionth trillionth dozen half quarter single double triple once twice
+`.trim().split(/\s+/));
+const MARKDOWN_CHARACTERS = new Set(['*', '_', '`', '~', '#', '>', '[', ']', '{', '}', '|', '\\']);
 
 const PRICE_CATEGORIES = new Map([
   'Accessories',
@@ -135,8 +143,10 @@ function getClaudeExplanation(message) {
   const isComplete = message?.stop_reason === 'end_turn';
   const containsUnsafeMarkup = /[<>]/.test(explanation);
   const containsControlOrBidiCharacters = /[\u0000-\u001F\u007F-\u009F\u061C\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/.test(rawExplanation);
-  const containsNumber = /\p{N}/u.test(explanation) || NUMBER_WORD_PATTERN.test(explanation);
-  const containsMarkdown = /[*_`~#>\[\]{}|\\]/.test(explanation) || /^[-+]\s/.test(explanation);
+  const words = explanation.toLowerCase().match(/[a-z]+/g) || [];
+  const containsNumber = /\p{N}/u.test(explanation) || words.some((word) => NUMBER_WORDS.has(word));
+  const containsMarkdown = [...explanation].some((character) => MARKDOWN_CHARACTERS.has(character))
+    || /^[-+]\s/.test(explanation);
   const isSingleSentence = sentenceMarks.length === 1 && /[.!?]$/.test(explanation);
   if (
     !isComplete

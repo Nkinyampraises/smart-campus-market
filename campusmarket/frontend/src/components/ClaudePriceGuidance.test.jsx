@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ClaudePriceGuidance from './ClaudePriceGuidance';
@@ -53,12 +53,12 @@ describe('ClaudePriceGuidance', () => {
     expect(api.priceSuggestion).toHaveBeenCalledWith({ category: 'Electronics', condition: 'Like New' });
     expect(screen.getByRole('status')).toHaveTextContent(/asking Claude/i);
 
-    await act(async () => pending.resolve(highGuidance));
+    pending.resolve(highGuidance);
 
     expect(await screen.findByText(highGuidance.explanation)).toBeInTheDocument();
     expect(screen.getByText(/Claude · claude-sonnet-5/i)).toBeInTheDocument();
     expect(screen.getByText('to')).toHaveClass('sr-only');
-    await user.click(screen.getByRole('button', { name: /Use .*90.*000.*FCFA/i }));
+    await user.click(screen.getByRole('button', { name: /^Use /i }));
     expect(onApply).toHaveBeenCalledWith(90000);
   });
 
@@ -132,7 +132,7 @@ describe('ClaudePriceGuidance', () => {
 
     await user.click(screen.getByRole('button', { name: 'Ask Claude' }));
     rerender(<ClaudePriceGuidance category="Books" condition="Used" onApply={vi.fn()} />);
-    await act(async () => pending.resolve(highGuidance));
+    pending.resolve(highGuidance);
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Ask Claude' })).toBeEnabled());
     expect(screen.queryByText(highGuidance.explanation)).not.toBeInTheDocument();

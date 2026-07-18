@@ -119,12 +119,12 @@ const ClaudePriceGuidance = ({ category, condition, onApply }) => {
         )}
 
         {isLoading && (
-          <div className="mb-4 flex items-center gap-3 text-[13px] text-gray-600" role="status">
+          <output className="mb-4 flex items-center gap-3 text-[13px] text-gray-600">
             <span aria-hidden="true" className="material-symbols-outlined animate-spin text-[20px] text-emerald-600">
               progress_activity
             </span>
             <span>Checking completed campus sales and asking Claude…</span>
-          </div>
+          </output>
         )}
 
         {status === 'error' && (
