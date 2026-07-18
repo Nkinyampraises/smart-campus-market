@@ -64,12 +64,12 @@ if (envFile.isFile()) {
 
 // Claude has one source of truth: /srv/campustrade/shared/ai-provider.env.
 // Remove the superseded duplicate file credential if an older release created it.
-def provider = SystemCredentialsProvider.getInstance()
-def obsoleteAiCredential = provider.getCredentials().find {
+def credentialProvider = SystemCredentialsProvider.getInstance()
+def obsoleteAiCredential = credentialProvider.getCredentials().find {
   it.id == 'campustrade-ai-provider-env'
 }
 if (obsoleteAiCredential != null &&
-    !provider.getStore().removeCredentials(Domain.global(), obsoleteAiCredential)) {
+    !credentialProvider.getStore().removeCredentials(Domain.global(), obsoleteAiCredential)) {
   throw new IllegalStateException('The obsolete duplicate AI provider credential could not be removed.')
 }
 def obsoleteAiStage = new File('/var/lib/jenkins/campustrade-ai-provider.env')
