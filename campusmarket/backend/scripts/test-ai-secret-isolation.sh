@@ -11,6 +11,7 @@ jenkins_config="$root_dir/backend/scripts/configure-jenkins-job.groovy"
 ansible_deploy="$root_dir/ansible/playbooks/deploy-platform.yml"
 rebuild_script="$root_dir/backend/scripts/rebuild-vps-from-scratch.sh"
 migration_script="$root_dir/k8s/scripts/migrate-and-cutover.sh"
+rollback_script="$root_dir/k8s/scripts/rollback-to-compose.sh"
 
 [[ -r "$example" && -x "$validator" ]] || {
   echo 'Missing AI provider configuration contract.' >&2
@@ -84,6 +85,9 @@ set -e
 grep -Fq 'validate-ai-provider-env.sh' "$deploy_script"
 grep -Fq 'validate-ai-provider-env.sh' "$migration_script"
 grep -Fq 'validate-ai-provider-env.sh' "$rebuild_script"
+grep -Fq 'validate-ai-provider-env.sh' "$rollback_script"
+grep -Fq 'docker-compose.ai.yml' "$rollback_script"
+grep -Fq 'AI_PROVIDER_ENV_FILE="$ai_env_file"' "$rollback_script"
 grep -Fq 'campustrade.io/ai-provider-secret-sha256' "$deploy_script"
 
 awk '
@@ -107,7 +111,7 @@ grep -Fq 'existing-ai-provider.env' "$rebuild_script"
 grep -Fq 'backend/ai-provider.env' "$root_dir/.gitignore"
 
 if git -C "$root_dir" grep -n -E \
-  'sk-ant-api[0-9]{2}-[A-Za-z0-9_-]{20,}' -- \
+  'sk-ant-[A-Za-z0-9_-]{20,}' -- \
   . ':(exclude)backend/scripts/test-ai-secret-isolation.sh' >/dev/null
 then
   echo 'An Anthropic secret-like value is present in the tracked source tree.' >&2
@@ -118,4 +122,5 @@ bash -n "$validator"
 bash -n "$deploy_script"
 bash -n "$migration_script"
 bash -n "$rebuild_script"
+bash -n "$rollback_script"
 echo 'AI provider secret isolation tests passed.'
