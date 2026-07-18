@@ -1,10 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-contract_url="${AUTH_CONTRACT_URL:-http://127.0.0.1/api/auth/health}"
 expected_contract='ictuniversity.edu.cm:v1'
 
-payload="$(curl --fail --silent --show-error --max-time 10 "$contract_url")" || {
+if [[ -n "${AUTH_CONTRACT_URL:-}" ]]; then
+  payload="$(curl --fail --silent --show-error --max-time 10 "$AUTH_CONTRACT_URL")" || {
+    echo 'Strict authentication release probe failed.' >&2
+    exit 1
+  }
+else
+  payload="$(k3s kubectl get --raw \
+    '/api/v1/namespaces/campustrade/services/http:auth-service:3001/proxy/health')" || {
+    echo 'Strict authentication release probe failed.' >&2
+    exit 1
+  }
+fi
+
+[[ -n "$payload" ]] || {
   echo 'Strict authentication release probe failed.' >&2
   exit 1
 }

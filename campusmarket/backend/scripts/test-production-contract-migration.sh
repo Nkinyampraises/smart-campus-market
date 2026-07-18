@@ -90,15 +90,15 @@ cat >"$probe_dir/curl" <<'EOF'
 printf '%s' "$FAKE_AUTH_PAYLOAD"
 EOF
 chmod +x "$probe_dir/curl"
-if PATH="$probe_dir:$PATH" FAKE_AUTH_PAYLOAD='{"contracts":{}}' bash "$probe" >/dev/null 2>&1; then
+if PATH="$probe_dir:$PATH" AUTH_CONTRACT_URL=http://test FAKE_AUTH_PAYLOAD='{"contracts":{}}' bash "$probe" >/dev/null 2>&1; then
   echo 'Strict-auth probe accepted a missing contract.' >&2
   exit 1
 fi
-if PATH="$probe_dir:$PATH" FAKE_AUTH_PAYLOAD='{"contracts":{"university_email":"wrong:v1"}}' bash "$probe" >/dev/null 2>&1; then
+if PATH="$probe_dir:$PATH" AUTH_CONTRACT_URL=http://test FAKE_AUTH_PAYLOAD='{"contracts":{"university_email":"wrong:v1"}}' bash "$probe" >/dev/null 2>&1; then
   echo 'Strict-auth probe accepted the wrong contract.' >&2
   exit 1
 fi
-PATH="$probe_dir:$PATH" FAKE_AUTH_PAYLOAD='{"contracts":{"university_email":"ictuniversity.edu.cm:v1"}}' bash "$probe" >/dev/null
+PATH="$probe_dir:$PATH" AUTH_CONTRACT_URL=http://test FAKE_AUTH_PAYLOAD='{"contracts":{"university_email":"ictuniversity.edu.cm:v1"}}' bash "$probe" >/dev/null
 rm -rf "$probe_dir"
 
 echo 'Production database contract migration tests passed.'

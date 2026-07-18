@@ -22,8 +22,7 @@ exec 9>"$shared_dir/production-contract.lock"
 flock -n 9 || { echo 'Another production contract operation is already running.' >&2; exit 1; }
 
 # The database constraint is safe only after the strict auth code is live.
-AUTH_CONTRACT_URL="${AUTH_CONTRACT_URL:-http://127.0.0.1/api/auth/health}" \
-  bash "$root_dir/backend/scripts/verify-strict-auth-release.sh"
+bash "$root_dir/backend/scripts/verify-strict-auth-release.sh"
 
 invalid_count="$(k3s kubectl -n campustrade exec postgres-0 -- \
   psql -At -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -c \
